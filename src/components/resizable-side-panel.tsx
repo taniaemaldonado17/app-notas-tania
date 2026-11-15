@@ -1,10 +1,26 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { PanelRightClose, PanelRightOpen, X } from 'lucide-react'
+import { Check, Maximize2, PanelRight, PanelRightClose, PanelRightOpen, SquareSplitVertical, X } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
 const STORAGE_KEY = 'notas:panel-width'
+const MODE_KEY = 'notas:panel-mode'
+
+/** How the detail opens, like Notion's "side peek / center peek / full page". */
+export type PanelMode = 'side' | 'center' | 'full'
+const MODES: { id: PanelMode; label: string; icon: typeof PanelRight }[] = [
+  { id: 'side', label: 'Panel lateral', icon: PanelRight },
+  { id: 'center', label: 'Tarjeta centrada', icon: SquareSplitVertical },
+  { id: 'full', label: 'Pantalla completa', icon: Maximize2 },
+]
 const MIN_WIDTH = 320
 const MAX_WIDTH_RATIO = 0.85 // 85% of viewport width
 const DEFAULT_WIDTH = 480
@@ -46,7 +62,27 @@ export function ResizableSidePanel({
 }: Props) {
   const [width, setWidth] = useState(DEFAULT_WIDTH)
   const [collapsed, setCollapsed] = useState(false)
+  const [mode, setModeState] = useState<PanelMode>('side')
   const [isResizing, setIsResizing] = useState(false)
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(MODE_KEY)
+      if (saved === 'side' || saved === 'center' || saved === 'full') setModeState(saved)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  const setMode = (m: PanelMode) => {
+    setModeState(m)
+    setCollapsed(false)
+    try {
+      localStorage.setItem(MODE_KEY, m)
+    } catch {
+      // ignore
+    }
+  }
   const panelRef = useRef<HTMLDivElement | null>(null)
   const startXRef = useRef(0)
   const startWidthRef = useRef(0)
@@ -81,7 +117,7 @@ export function ResizableSidePanel({
     function onKey(e: KeyboardEvent) {
       if (e.ctrlKey && (e.key === '\\' || e.code === 'Backslash')) {
         e.preventDefault()
-        if (!open) return
+        if (!open || mode !== 'side') return
         setCollapsed((c) => !c)
       }
       if (e.key === 'Escape' && open && !collapsed) {
@@ -93,7 +129,7 @@ export function ResizableSidePanel({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, collapsed, onClose])
+  }, [open, collapsed, onClose, mode])
 
   // Drag-to-resize handlers
   const onMouseDownResize = useCallback(
@@ -252,23 +288,40 @@ export function ResizableSidePanel({
         onClick={onClose}
       />
 
-      {/* Panel — floating with margin around it (top, bottom, right) */}
+      {/* Panel — side: floating on the right; center: card in the middle; full: whole window */}
       <div
         ref={panelRef}
         className="fixed z-50 flex flex-col border border-border bg-background shadow-xl"
-        style={{
-          width: `${width}px`,
-          top: `${PANEL_MARGIN}px`,
-          bottom: `${PANEL_MARGIN}px`,
-          right: `${PANEL_MARGIN}px`,
-          borderRadius: '12px',
-          overflow: 'hidden',
-        }}
+        style={
+          mode === 'full'
+            ? { inset: 0, borderRadius: 0, overflow: 'hidden', borderWidth: 0 }
+            : mode === 'center'
+              ? {
+                  width: 'min(960px, calc(100vw - 32px))',
+                  top: '5vh',
+                  bottom: '5vh',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                }
+              : {
+                  width: `${width}px`,
+                  maxWidth: `calc(100vw - ${PANEL_MARGIN * 2}px)`,
+                  top: `${PANEL_MARGIN}px`,
+                  bottom: `${PANEL_MARGIN}px`,
+                  right: `${PANEL_MARGIN}px`,
+                  borderRadius: '12px',
+                  overflow: 'hidden',
+                }
+        }
         role="dialog"
         aria-modal="true"
         aria-label={title ?? 'Detalle de la tarjeta'}
+        data-panel-mode={mode}
       >
-        {/* Resize handle on the left edge */}
+        {/* Resize handle on the left edge (side mode only) */}
+        {mode === 'side' && (
         <div
           onMouseDown={onMouseDownResize}
           onTouchStart={onTouchStartResize}
@@ -293,16 +346,55 @@ export function ResizableSidePanel({
             <div className="h-1 w-1 rounded-full bg-muted-foreground" />
           </div>
         </div>
+        )}
 
-        {/* Collapse button — top-right corner */}
-        <button
-          onClick={() => setCollapsed(true)}
-          className="absolute right-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-          aria-label="Colapsar panel"
-          title="Colapsar panel (Ctrl+\\)"
-        >
-          <PanelRightClose className="h-4 w-4" />
-        </button>
+        {/* View mode + collapse — top-right corner */}
+        <div className="absolute right-3 top-3 z-30 flex items-center gap-0.5">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                aria-label="Cambiar cómo se abre"
+                title="Ver como…"
+              >
+                {(() => {
+                  const Icon = MODES.find((m) => m.id === mode)!.icon
+                  return <Icon className="h-4 w-4" />
+                })()}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="z-[70] w-52">
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Ver como</DropdownMenuLabel>
+              {MODES.map((m) => (
+                <DropdownMenuItem key={m.id} onClick={() => setMode(m.id)}>
+                  <m.icon className="h-4 w-4" />
+                  {m.label}
+                  {mode === m.id && <Check className="ml-auto h-3.5 w-3.5" />}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {mode === 'side' && (
+            <button
+              onClick={() => setCollapsed(true)}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label="Colapsar panel"
+              title="Colapsar panel (Ctrl+\\)"
+            >
+              <PanelRightClose className="h-4 w-4" />
+            </button>
+          )}
+          {mode !== 'side' && (
+            <button
+              onClick={onClose}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label="Cerrar"
+              title="Cerrar (Esc)"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
 
         {/* Content */}
         <div className={cn('flex h-full flex-col overflow-hidden', className)}>

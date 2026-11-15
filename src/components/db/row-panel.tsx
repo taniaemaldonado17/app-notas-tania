@@ -111,7 +111,7 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
             {db.icon} {db.title}
           </span>
         </div>
-        <div className="flex items-center gap-0.5 pr-8">
+        <div className="flex items-center gap-0.5 pr-16">
           <Button
             variant="ghost"
             size="sm"
@@ -149,7 +149,7 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
         </div>
       </div>
 
-      <div className="flex-1 space-y-5 overflow-y-auto px-5 pb-10 pt-6">
+      <div className="peek-body flex-1 space-y-5 overflow-y-auto px-5 pb-10 pt-6">
         {/* Icon + title */}
         <div className="space-y-1">
           <input

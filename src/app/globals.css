@@ -259,3 +259,154 @@
   cursor: grabbing !important;
   box-shadow: 0 18px 36px -8px rgba(0, 0, 0, 0.45);
 }
+
+/* ---------- "Insertar HTML o web" block ---------- */
+.embed-wrap {
+  position: relative;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--card);
+}
+.embed-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}
+.embed-toolbar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--popover) 92%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.embed-wrap:hover .embed-toolbar,
+.embed-toolbar:focus-within { opacity: 1; }
+.embed-toolbar button,
+.embed-toolbar a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  color: var(--muted-foreground);
+}
+.embed-toolbar button:hover,
+.embed-toolbar a:hover { background: var(--accent); color: var(--foreground); }
+.embed-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 220px;
+  padding: 0 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.embed-resize {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+  cursor: ns-resize;
+}
+.embed-resize::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 40px;
+  height: 4px;
+  margin-left: -20px;
+  border-radius: 999px;
+  background: var(--muted-foreground);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.embed-wrap:hover .embed-resize::after { opacity: 0.6; }
+.embed-empty {
+  width: 100%;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.embed-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 14px;
+}
+.embed-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.embed-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+}
+.embed-tabs button:hover { background: var(--accent); }
+.embed-tabs button[data-active="true"] { background: var(--accent); color: var(--foreground); font-weight: 500; }
+.embed-form input,
+.embed-form textarea {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--foreground);
+  outline: none;
+}
+.embed-form textarea { font-family: var(--font-geist-mono), monospace; font-size: 12px; resize: vertical; }
+.embed-form input:focus,
+.embed-form textarea:focus { border-color: #2383e2; }
+.embed-hint { font-size: 12px; color: var(--muted-foreground); }
+.embed-error { font-size: 12px; color: var(--destructive); }
+.embed-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.embed-link:hover { background: var(--accent); color: var(--foreground); }
+.embed-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.embed-actions button {
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.embed-actions button:hover { background: var(--accent); color: var(--foreground); }
+.embed-actions button.primary { background: #2383e2; color: #fff; }
+.embed-actions button.primary:hover { background: #1b6ec2; }
+
+/* Full-page detail: keep the content in a readable column, like a Notion page. */
+[data-panel-mode="full"] .peek-body {
+  padding-left: max(1.25rem, calc((100% - 900px) / 2));
+  padding-right: max(1.25rem, calc((100% - 900px) / 2));
+}

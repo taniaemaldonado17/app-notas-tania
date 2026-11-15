@@ -328,8 +328,8 @@ function PanelBody({
           </span>
         </div>
 
-        {/* Right: actions */}
-        <div className="flex items-center gap-0.5">
+        {/* Right: actions (room on the right for the panel's own buttons) */}
+        <div className="flex items-center gap-0.5 pr-16">
           {/* Compartir */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -475,7 +475,7 @@ function PanelBody({
       )}
 
       <div
-        className="flex flex-1 flex-col gap-4 overflow-y-auto p-5 notion-scroll"
+        className="peek-body flex flex-1 flex-col gap-4 overflow-y-auto p-5 notion-scroll"
         style={accentStyle}
       >
         {/* Title row: emoji icon + inline editable title */}

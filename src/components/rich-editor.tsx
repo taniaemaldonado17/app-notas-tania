@@ -2,13 +2,19 @@
 
 import { useEffect } from 'react'
 import { useTheme } from 'next-themes'
-import type { BlockNoteEditor } from '@blocknote/core'
+import { BlockNoteSchema, defaultBlockSpecs, filterSuggestionItems, insertOrUpdateBlockForSlashMenu, type BlockNoteEditor } from '@blocknote/core'
 import { es } from '@blocknote/core/locales'
-import { useCreateBlockNote } from '@blocknote/react'
+import { getDefaultReactSlashMenuItems, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
 import '@blocknote/mantine/style.css'
+import { Code2 } from 'lucide-react'
 import type { DocBlock } from '@/lib/blocks'
 import { uploadFile } from '@/lib/api'
+import { EmbedBlock } from '@/components/embed-block'
+
+const schema = BlockNoteSchema.create({
+  blockSpecs: { ...defaultBlockSpecs, embed: EmbedBlock() },
+})
 
 // Spanish UI, with the toggle block named as in Notion ("Lista desplegable").
 const dictionary = {
@@ -47,6 +53,7 @@ export default function RichEditor({ initialBlocks, onChange, onReady }: Props) 
   const { resolvedTheme } = useTheme()
 
   const editor = useCreateBlockNote({
+    schema,
     dictionary,
     initialContent: initialBlocks.length > 0 ? (initialBlocks as any) : undefined,
     uploadFile: async (file: File) => {
@@ -66,6 +73,29 @@ export default function RichEditor({ initialBlocks, onChange, onReady }: Props) 
       theme={resolvedTheme === 'light' ? 'light' : 'dark'}
       onChange={() => onChange(editor.document as unknown as DocBlock[])}
       className="rich-editor"
-    />
+      slashMenu={false}
+    >
+      <SuggestionMenuController
+        triggerCharacter="/"
+        getItems={async (query) =>
+          filterSuggestionItems(
+            [
+              ...getDefaultReactSlashMenuItems(editor),
+              {
+                title: 'Insertar HTML o web',
+                subtext: 'Mostrá una página web, un mapa, un video o tu propio código HTML',
+                aliases: ['html', 'embed', 'insertar', 'web', 'iframe', 'codigo', 'pagina'],
+                group: 'Insertar',
+                icon: <Code2 size={18} />,
+                onItemClick: () => {
+                  insertOrUpdateBlockForSlashMenu(editor, { type: 'embed' })
+                },
+              },
+            ],
+            query
+          )
+        }
+      />
+    </BlockNoteView>
   )
 }
