@@ -20,9 +20,6 @@ export const metadata: Metadata = {
   description: "Notas de trabajo en estilo Notion. Tablero Kanban, listas de tareas y registro diario.",
   keywords: ["Notion", "Kanban", "Tareas", "Notas", "Trabajo"],
   authors: [{ name: "Registro de tareas diarias" }],
-  icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
-  },
 };
 
 export default function RootLayout({
