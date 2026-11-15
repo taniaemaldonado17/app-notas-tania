@@ -49,7 +49,7 @@ Editá `.env` y cambiá:
   openssl rand -base64 32
   ```
 - `NEXTAUTH_URL` → dejá `http://localhost:3000` para desarrollo local
-- `DATABASE_URL` → dejá `file:./dev.db` (crea la DB en la raíz del proyecto)
+- `DATABASE_URL` → la cadena de conexión de tu base PostgreSQL (por ejemplo una gratuita de [Neon](https://neon.tech))
 
 ### 3. Crear la base de datos
 
@@ -59,7 +59,7 @@ npx prisma db push
 bunx prisma db push
 ```
 
-Esto crea el archivo `dev.db` con todas las tablas.
+Esto crea todas las tablas en la base de datos.
 
 ### 4. (Opcional) Crear usuario demo
 
@@ -112,7 +112,7 @@ En la sección **"Environment Variables"** agregá:
 
 | Nombre | Valor |
 |---|---|
-| `DATABASE_URL` | `file:./prod.db` (ver nota abajo sobre SQLite) |
+| `DATABASE_URL` | la cadena de conexión de PostgreSQL (ver paso 7) |
 | `NEXTAUTH_SECRET` | generalo con `openssl rand -base64 32` |
 | `NEXTAUTH_URL` | `https://TU-APP.vercel.app` (te lo da Vercel después del primer deploy) |
 
@@ -131,36 +131,13 @@ En la sección **"Environment Variables"** agregá:
 
 ### 7. Crear la base de datos
 
-**Nota sobre SQLite en Vercel**: SQLite usa un archivo local, y Vercel no persiste archivos entre deploys. Tenés dos opciones:
+La app usa PostgreSQL (Vercel no persiste archivos, así que SQLite no sirve ahí).
 
-#### Opción A: Usar PostgreSQL (recomendado para producción)
+1. Creá una base de datos PostgreSQL gratuita en [Neon](https://neon.tech) (recomendado), [Supabase](https://supabase.com) o [Railway](https://railway.app). También podés crearla desde Vercel: **Storage → Create Database → Neon**.
 
-1. Creá una base de datos PostgreSQL gratuita en:
-   - [Neon](https://neon.tech) (recomendado, gratis)
-   - [Supabase](https://supabase.com)
-   - [Railway](https://railway.app)
+2. En Vercel, poné en `DATABASE_URL` la cadena de conexión (algo como `postgresql://user:pass@host/db?sslmode=require`).
 
-2. Cambiá `prisma/schema.prisma`:
-   ```prisma
-   datasource db {
-     provider = "postgresql"  // cambiar de sqlite a postgresql
-     url      = env("DATABASE_URL")
-   }
-   ```
-
-3. En Vercel, poné en `DATABASE_URL` la conexión de Neon/Supabase (algo como `postgresql://user:pass@host/db?sslmode=require`)
-
-4. Hacé push del schema:
-   ```bash
-   npx prisma db push
-   npx prisma generate
-   ```
-
-5. Redeploy en Vercel
-
-#### Opción B: Seguir con SQLite (solo para testing)
-
-Si querés probar rápido sin configurar PostgreSQL, SQLite funciona pero **los datos se pierden en cada deploy**. Solo útil para ver la app funcionando.
+3. Deployá. El build (`vercel.json`) corre `prisma db push`, que crea las tablas automáticamente.
 
 ## Estructura del proyecto
 
