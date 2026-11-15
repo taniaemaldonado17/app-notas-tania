@@ -466,3 +466,14 @@ export async function addRowComment(rowId: string, text: string): Promise<CardCo
   })
   return data.comment
 }
+/* ------------------------------ Calendar feed ----------------------------- */
+
+/** Path of the user's subscribable .ics feed (created on first call). */
+export async function getCalendarFeed(): Promise<{ path: string }> {
+  return jsonFetch(`${API_BASE}/calendar`)
+}
+
+/** New secret link; the previous one stops working. */
+export async function resetCalendarFeed(): Promise<{ path: string }> {
+  return jsonFetch(`${API_BASE}/calendar`, { method: 'POST' })
+}

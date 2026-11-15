@@ -10,7 +10,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { ChevronLeft, ChevronRight, FileText, MessageSquare, Plus } from 'lucide-react'
+import { FileText, MessageSquare, Plus } from 'lucide-react'
 import { personLabel, useDb } from '@/components/db/db-context'
 import { OptionChip, Avatar } from '@/components/db/chips'
 import { PropertyDisplay } from '@/components/db/property-value'
@@ -19,7 +19,6 @@ import { resolveValue } from '@/lib/db-resolve'
 import {
   getProperty,
   imageSrcFromLink,
-  todayISO,
   type DatabaseDef,
   type DbRow,
   type PropertyDef,
@@ -32,13 +31,13 @@ import { cn } from '@/lib/utils'
 /* Shared card                                                          */
 /* ------------------------------------------------------------------ */
 
-function visibleProps(db: DatabaseDef, view: ViewDef): PropertyDef[] {
+export function visibleProps(db: DatabaseDef, view: ViewDef): PropertyDef[] {
   return view.visibleProperties
     .map((id) => getProperty(db, id))
     .filter((p): p is PropertyDef => !!p && p.type !== 'title' && p.id !== view.coverProperty)
 }
 
-function hasDisplayValue(row: DbRow, prop: PropertyDef): boolean {
+export function hasDisplayValue(row: DbRow, prop: PropertyDef): boolean {
   if (prop.type === 'formula' || prop.type === 'backlink' || prop.type === 'created_time' || prop.type === 'updated_time') return true
   const v = row.values[prop.id]
   if (v === undefined || v === null || v === '' || v === false) return false
@@ -338,158 +337,4 @@ export function ListView({
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* Calendar                                                             */
-/* ------------------------------------------------------------------ */
-
-const WEEKDAYS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
-const monthFmt = new Intl.DateTimeFormat('es-AR', { month: 'long', year: 'numeric' })
-
-function iso(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-export function CalendarView({
-  db,
-  view,
-  rows,
-  onNew,
-}: {
-  db: DatabaseDef
-  view: ViewDef
-  rows: DbRow[]
-  onNew: (values?: Record<string, RowValue>) => void
-}) {
-  const { openRow, ctx } = useDb()
-  const [month, setMonth] = useState(() => {
-    const d = new Date()
-    return new Date(d.getFullYear(), d.getMonth(), 1)
-  })
-  const dateProp = view.dateProperty ? getProperty(db, view.dateProperty) : undefined
-  const props = visibleProps(db, view)
-
-  const byDay = useMemo(() => {
-    const map = new Map<string, DbRow[]>()
-    if (!dateProp) return map
-    for (const r of rows) {
-      const v = resolveValue(ctx, db, r, dateProp)
-      if (typeof v !== 'string' || !v) continue
-      const key = v.slice(0, 10)
-      map.set(key, [...(map.get(key) ?? []), r])
-    }
-    return map
-  }, [rows, dateProp, ctx, db])
-
-  if (!dateProp) {
-    return <p className="px-2 py-6 text-sm text-muted-foreground">Elegí una propiedad de fecha en la configuración de la vista (⚙).</p>
-  }
-
-  const start = new Date(month)
-  start.setDate(1 - month.getDay())
-  const days = Array.from({ length: 42 }, (_, i) => {
-    const d = new Date(start)
-    d.setDate(start.getDate() + i)
-    return d
-  })
-  // Drop a trailing week that belongs entirely to the next month.
-  const weeks = days[35].getMonth() !== month.getMonth() ? 5 : 6
-  const today = todayISO()
-  const undated = rows.length - Array.from(byDay.values()).reduce((s, l) => s + l.length, 0)
-  const editable = dateProp.type === 'date'
-
-  return (
-    <div>
-      <div className="mb-2 flex items-center gap-2">
-        <span className="text-sm font-medium">
-          {(() => {
-            const label = monthFmt.format(month)
-            return label.charAt(0).toUpperCase() + label.slice(1)
-          })()}
-        </span>
-        {undated > 0 && <span className="text-xs text-muted-foreground">· {undated} sin fecha</span>}
-        <div className="ml-auto flex items-center gap-1">
-          <button type="button" onClick={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))} className="rounded p-1 hover:bg-accent" aria-label="Mes anterior">
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const d = new Date()
-              setMonth(new Date(d.getFullYear(), d.getMonth(), 1))
-            }}
-            className="rounded px-2 py-0.5 text-xs hover:bg-accent"
-          >
-            Hoy
-          </button>
-          <button type="button" onClick={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))} className="rounded p-1 hover:bg-accent" aria-label="Mes siguiente">
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-      <div className="notion-scroll overflow-x-auto">
-        <div className="grid min-w-[640px] grid-cols-7 border-l border-t border-border">
-          {WEEKDAYS.map((w) => (
-            <div key={w} className="border-b border-r border-border px-2 py-1 text-center text-[11px] text-muted-foreground">
-              {w}
-            </div>
-          ))}
-          {days.slice(0, weeks * 7).map((d) => {
-            const key = iso(d)
-            const inMonth = d.getMonth() === month.getMonth()
-            const items = byDay.get(key) ?? []
-            return (
-              <div key={key} className={cn('group min-h-24 border-b border-r border-border p-1', !inMonth && 'bg-muted/20')}>
-                <div className="mb-1 flex items-center justify-between">
-                  {editable ? (
-                    <button
-                      type="button"
-                      onClick={() => onNew({ [dateProp.id]: key })}
-                      className="rounded p-0.5 text-muted-foreground opacity-0 hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
-                      aria-label={`Nueva el ${d.getDate()}`}
-                    >
-                      <Plus className="h-3 w-3" />
-                    </button>
-                  ) : (
-                    <span />
-                  )}
-                  <span
-                    className={cn(
-                      'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs',
-                      key === today ? 'bg-[#eb5757] font-medium text-white' : inMonth ? 'text-foreground' : 'text-muted-foreground'
-                    )}
-                  >
-                    {d.getDate()}
-                  </span>
-                </div>
-                <div className="space-y-1">
-                  {items.map((r) => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => openRow(r.id)}
-                      className="block w-full rounded border border-border bg-card px-1.5 py-1 text-left text-xs shadow-sm hover:bg-accent"
-                    >
-                      <span className="block truncate font-medium">
-                        {r.icon ? `${r.icon} ` : ''}
-                        {r.title || 'Sin título'}
-                      </span>
-                      {props
-                        .filter((p) => hasDisplayValue(r, p))
-                        .slice(0, 2)
-                        .map((p) => (
-                          <span key={p.id} className="mt-0.5 flex min-w-0">
-                            <PropertyDisplay db={db} row={r} prop={p} />
-                          </span>
-                        ))}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
+export { CalendarView } from '@/components/db/calendar-view'

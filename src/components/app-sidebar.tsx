@@ -100,7 +100,8 @@ export function AppSidebar({
 
       <aside
         className={cn(
-          'group/sidebar z-40 flex h-dvh w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[margin,transform] duration-200',
+          // Outer box keeps the layout width; the inner panel floats as glass.
+          'group/sidebar z-40 flex h-dvh w-60 shrink-0 flex-col p-2 text-sidebar-foreground transition-[margin,transform] duration-200',
           // Overlay on phones; in the page flow (sticky) on desktop.
           'fixed inset-y-0 left-0 md:sticky md:left-auto md:top-0',
           sidebarOpen
@@ -111,6 +112,7 @@ export function AppSidebar({
         aria-hidden={!sidebarOpen}
         inert={!sidebarOpen}
       >
+       <div className="glass-panel flex min-h-0 flex-1 flex-col overflow-hidden rounded-[22px]">
         {/* Workspace header */}
         <div className="flex h-12 items-center gap-2 px-3">
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary text-xs font-semibold text-primary-foreground">
@@ -267,6 +269,7 @@ export function AppSidebar({
             </button>
           </NewPageMenu>
         </div>
+       </div>
       </aside>
     </>
   )

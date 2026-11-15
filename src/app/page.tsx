@@ -291,7 +291,7 @@ function AppShell() {
   const currentSummary = pages?.find((p) => p.id === pageId)
 
   return (
-    <div className="flex min-h-dvh bg-background">
+    <div className="app-wallpaper flex min-h-dvh bg-background">
       <AppSidebar
         pages={pages ?? []}
         currentPageId={pageId}

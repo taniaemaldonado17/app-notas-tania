@@ -27,6 +27,14 @@ model User {
   invitesUsed   PageInvite[]  @relation("InviteUser")
   favorites     Favorite[]
   rowsCreated   DbRow[]
+  // Secret for the read-only calendar feed (.ics) the user subscribes to on
+  // iPhone / iPad / Google Calendar. Regenerating it revokes the old link.
+  // (Plain index, not @unique: adding a unique constraint makes `db push`
+  // demand --accept-data-loss, which the Vercel build doesn't pass. Tokens
+  // are 192 random bits, so collisions don't happen in practice.)
+  calendarToken String?
+
+  @@index([calendarToken])
 }
 
 model Page {
