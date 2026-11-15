@@ -8,7 +8,6 @@ import { TopBar, CoverBanner } from '@/components/top-bar'
 import { Board } from '@/components/board'
 import { CardDetailPanel } from '@/components/card-detail-panel'
 import { fetchPages } from '@/lib/api'
-import { ensureTemplatePageClient } from '@/lib/template-client'
 import { useWorkspacePage } from '@/hooks/use-workspace-page'
 
 export default function Home() {
@@ -23,9 +22,6 @@ export default function Home() {
     ;(async () => {
       setLoadingPage(true)
       try {
-        // Ensure the demo template exists for the logged-in user
-        await ensureTemplatePageClient()
-
         const pages = await fetchPages()
         if (cancelled) return
         if (pages.length === 0) {

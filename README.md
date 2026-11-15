@@ -61,9 +61,9 @@ bunx prisma db push
 
 Esto crea todas las tablas en la base de datos.
 
-### 4. (Opcional) Crear usuario demo
+### 4. Habilitar el registro para crear tu cuenta
 
-La app crea automáticamente el usuario demo (`demo@notas.local` / `demo1234`) con la página de plantilla la primera vez que entrás. También podés registrarte con tu propio email desde la pantalla de login.
+El registro de cuentas nuevas está cerrado por defecto. Para crear tu cuenta, poné `NEXT_PUBLIC_ALLOW_REGISTRATION=true` en `.env`, registrate desde la pantalla de login y después volvé a ponerlo en `false`. En Vercel es igual: agregá la variable, hacé Redeploy, registrate, sacala y volvé a hacer Redeploy.
 
 ### 5. Levantar el servidor de desarrollo
 
@@ -74,13 +74,6 @@ bun run dev
 ```
 
 Abrí [http://localhost:3000](http://localhost:3000) en tu navegador.
-
-### 6. Entrar con el usuario demo
-
-- Email: `demo@notas.local`
-- Contraseña: `demo1234`
-
-O registrate con tu propio email desde la pantalla de login.
 
 ## Cómo deployar en Vercel (gratis)
 
@@ -205,17 +198,12 @@ npm run db:migrate   # Crea una migración de Prisma
 npm run db:reset     # Borra y recrea la base de datos (¡cuidado!)
 ```
 
-## Credenciales demo
-
-- Email: `demo@notas.local`
-- Contraseña: `demo1234`
-
 ## Tecnologías usadas
 
 - **Framework**: Next.js 16 (App Router, Turbopack)
 - **Lenguaje**: TypeScript 5
 - **Estilos**: Tailwind CSS 4 + shadcn/ui (componentes Radix)
-- **Base de datos**: SQLite (vía Prisma ORM)
+- **Base de datos**: PostgreSQL (vía Prisma ORM)
 - **Auth**: NextAuth.js v4 (Credentials provider + JWT)
 - **Drag-and-drop**: @dnd-kit/core + @dnd-kit/sortable
 - **Iconos**: lucide-react

@@ -10,6 +10,9 @@ import { Label } from '@/components/ui/label'
 
 type Mode = 'login' | 'register'
 
+// Registration is closed unless NEXT_PUBLIC_ALLOW_REGISTRATION=true.
+const ALLOW_REGISTRATION = process.env.NEXT_PUBLIC_ALLOW_REGISTRATION === 'true'
+
 export function AuthScreen() {
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
@@ -69,12 +72,6 @@ export function AuthScreen() {
     }
   }
 
-  function fillDemo() {
-    setEmail('demo@notas.local')
-    setPassword('demo1234')
-    setMode('login')
-  }
-
   return (
     <div className="relative min-h-screen w-full overflow-hidden">
       {/* Decorative water-textured cover backdrop */}
@@ -97,6 +94,7 @@ export function AuthScreen() {
             </div>
           </div>
 
+          {ALLOW_REGISTRATION && (
           <div className="mb-5 flex rounded-md border border-border bg-muted/50 p-1">
             <button
               type="button"
@@ -121,6 +119,7 @@ export function AuthScreen() {
               Registrarse
             </button>
           </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && (
@@ -178,23 +177,6 @@ export function AuthScreen() {
               {mode === 'login' ? 'Iniciar sesión' : 'Crear cuenta'}
             </Button>
           </form>
-
-          <div className="mt-6 rounded-md border border-dashed border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-            <p className="font-medium text-foreground">Cuenta demo</p>
-            <p className="mt-1">
-              Email: <span className="font-mono text-foreground">demo@notas.local</span>
-            </p>
-            <p>
-              Contraseña: <span className="font-mono text-foreground">demo1234</span>
-            </p>
-            <button
-              type="button"
-              onClick={fillDemo}
-              className="mt-2 text-foreground underline underline-offset-2 hover:opacity-80"
-            >
-              Rellenar automáticamente
-            </button>
-          </div>
         </div>
       </div>
     </div>

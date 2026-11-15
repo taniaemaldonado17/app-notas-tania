@@ -4,6 +4,14 @@ import { hashPassword } from '@/lib/bcrypt'
 import { ensureTemplatePage } from '@/lib/template'
 
 export async function POST(req: Request) {
+  // Registration is closed unless NEXT_PUBLIC_ALLOW_REGISTRATION=true.
+  if (process.env.NEXT_PUBLIC_ALLOW_REGISTRATION !== 'true') {
+    return NextResponse.json(
+      { error: 'El registro de nuevas cuentas está deshabilitado' },
+      { status: 403 }
+    )
+  }
+
   try {
     const body = await req.json()
     const email = (body?.email ?? '').toString().trim().toLowerCase()
