@@ -218,6 +218,42 @@
   text-decoration-color: currentColor;
 }
 
+/* Notion-style option colours (select chips, stat cards) */
+:root {
+  --opt-default-bg: #e3e2e080; --opt-default-fg: #32302c;
+  --opt-gray-bg: #e3e2e0;      --opt-gray-fg: #32302c;
+  --opt-brown-bg: #eee0da;     --opt-brown-fg: #442a1e;
+  --opt-orange-bg: #fadec9;    --opt-orange-fg: #49290e;
+  --opt-yellow-bg: #fdecc8;    --opt-yellow-fg: #402c1b;
+  --opt-green-bg: #dbeddb;     --opt-green-fg: #1c3829;
+  --opt-blue-bg: #d3e5ef;      --opt-blue-fg: #183347;
+  --opt-purple-bg: #e8deee;    --opt-purple-fg: #412454;
+  --opt-pink-bg: #f5e0e9;      --opt-pink-fg: #4c2337;
+  --opt-red-bg: #ffe2dd;       --opt-red-fg: #5d1715;
+}
+.dark {
+  --opt-default-bg: #373737;   --opt-default-fg: #ffffffde;
+  --opt-gray-bg: #5a5a5a;      --opt-gray-fg: #ffffffde;
+  --opt-brown-bg: #603b2c;     --opt-brown-fg: #ffffffde;
+  --opt-orange-bg: #854c1d;    --opt-orange-fg: #ffffffde;
+  --opt-yellow-bg: #89632a;    --opt-yellow-fg: #ffffffde;
+  --opt-green-bg: #2b593f;     --opt-green-fg: #ffffffde;
+  --opt-blue-bg: #28456c;      --opt-blue-fg: #ffffffde;
+  --opt-purple-bg: #492f64;    --opt-purple-fg: #ffffffde;
+  --opt-pink-bg: #69314c;      --opt-pink-fg: #ffffffde;
+  --opt-red-bg: #6e3630;       --opt-red-fg: #ffffffde;
+}
+[data-opt-color] { background: var(--opt-default-bg); color: var(--opt-default-fg); }
+[data-opt-color="gray"] { background: var(--opt-gray-bg); color: var(--opt-gray-fg); }
+[data-opt-color="brown"] { background: var(--opt-brown-bg); color: var(--opt-brown-fg); }
+[data-opt-color="orange"] { background: var(--opt-orange-bg); color: var(--opt-orange-fg); }
+[data-opt-color="yellow"] { background: var(--opt-yellow-bg); color: var(--opt-yellow-fg); }
+[data-opt-color="green"] { background: var(--opt-green-bg); color: var(--opt-green-fg); }
+[data-opt-color="blue"] { background: var(--opt-blue-bg); color: var(--opt-blue-fg); }
+[data-opt-color="purple"] { background: var(--opt-purple-bg); color: var(--opt-purple-fg); }
+[data-opt-color="pink"] { background: var(--opt-pink-bg); color: var(--opt-pink-fg); }
+[data-opt-color="red"] { background: var(--opt-red-bg); color: var(--opt-red-fg); }
+
 /* Drag preview lift */
 .dragging-card {
   cursor: grabbing !important;

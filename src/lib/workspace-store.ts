@@ -26,6 +26,11 @@ type WorkspaceUIState = {
   searchDialogOpen: boolean
   setSearchDialogOpen: (open: boolean) => void
 
+  /** Database row open in the side panel (or null). */
+  selectedRowId: string | null
+  openRow: (rowId: string) => void
+  closeRow: () => void
+
   /** Bumped whenever a card's favourite flag changes, so the sidebar reloads. */
   favoritesVersion: number
   bumpFavorites: () => void
@@ -47,6 +52,10 @@ export const useWorkspace = create<WorkspaceUIState>((set) => ({
 
   searchDialogOpen: false,
   setSearchDialogOpen: (open) => set({ searchDialogOpen: open }),
+
+  selectedRowId: null,
+  openRow: (rowId) => set({ selectedRowId: rowId }),
+  closeRow: () => set({ selectedRowId: null }),
 
   favoritesVersion: 0,
   bumpFavorites: () => set((s) => ({ favoritesVersion: s.favoritesVersion + 1 })),

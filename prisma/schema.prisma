@@ -26,10 +26,15 @@ model User {
   invitesSent   PageInvite[]  @relation("InviteCreator")
   invitesUsed   PageInvite[]  @relation("InviteUser")
   favorites     Favorite[]
+  rowsCreated   DbRow[]
 }
 
 model Page {
   id          String   @id @default(cuid())
+  // 'board' = Kanban board (columns/cards); 'databases' = Notion-style databases
+  kind        String   @default("board")
+  // Dashboard layout of a 'databases' page (stats, linked views, actions)
+  layout      Json?
   title       String
   subtitle    String?
   icon        String?
@@ -40,6 +45,7 @@ model Page {
   members     PageMember[]
   invites     PageInvite[]
   favoritedBy Favorite[]
+  databases   Database[]
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   columns     Column[]
@@ -151,13 +157,17 @@ model VerificationToken {
 model Comment {
   id        String   @id @default(cuid())
   text      String
-  cardId    String
-  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  // A comment belongs to a Kanban card or to a database row.
+  cardId    String?
+  card      Card?    @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  rowId     String?
+  row       DbRow?   @relation(fields: [rowId], references: [id], onDelete: Cascade)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
 
   @@index([cardId])
+  @@index([rowId])
 }
 
 // Uploaded files (images, PDFs). Stored in the database because the
@@ -219,4 +229,42 @@ model Favorite {
 
   @@unique([userId, pageId])
   @@unique([userId, cardId])
+}
+
+// A Notion-style database inside a 'databases' page. The schema (typed
+// properties) and the saved views live as JSON; see src/lib/db-types.ts.
+model Database {
+  id          String   @id @default(cuid())
+  pageId      String
+  page        Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  title       String
+  icon        String?
+  properties  Json
+  views       Json
+  position    Int      @default(0)
+  rows        DbRow[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([pageId])
+}
+
+// One row (entry) of a database. Property values are keyed by property id.
+// `content` holds the row's page body (same format as Card.description).
+model DbRow {
+  id          String    @id @default(cuid())
+  databaseId  String
+  database    Database  @relation(fields: [databaseId], references: [id], onDelete: Cascade)
+  title       String    @default("")
+  icon        String?
+  values      Json      @default("{}")
+  content     String?
+  position    Float     @default(0)
+  createdById String?
+  createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  comments    Comment[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([databaseId])
 }

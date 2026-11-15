@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useWorkspace } from '@/lib/workspace-store'
 import { fetchFavoriteCards } from '@/lib/api'
-import type { FavoriteCard, PageSummary } from '@/lib/types'
+import type { FavoriteCard, NewPageType, PageSummary } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -34,7 +34,7 @@ type Props = {
   currentPageId: string | null
   onSelectPage: (pageId: string) => void
   onOpenCard: (pageId: string, cardId: string) => void
-  onCreatePage: () => void
+  onCreatePage: (type?: NewPageType) => void
   onRenamePage: (pageId: string, title: string) => void
   onToggleFavoritePage: (pageId: string) => void
   onDeletePage: (pageId: string) => void
@@ -191,15 +191,16 @@ export function AppSidebar({
             open={pagesOpen}
             onToggle={() => setPagesOpen((v) => !v)}
             action={
+              <NewPageMenu onCreate={onCreatePage}>
               <button
                 type="button"
-                onClick={onCreatePage}
                 className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-sidebar-accent hover:text-foreground focus-visible:opacity-100 group-hover/section:opacity-100"
                 aria-label="Nueva página"
                 title="Nueva página"
               >
                 <Plus className="h-3.5 w-3.5" />
               </button>
+              </NewPageMenu>
             }
           />
           )}
@@ -256,14 +257,15 @@ export function AppSidebar({
 
         {/* New page */}
         <div className="border-t border-sidebar-border p-2">
-          <button
-            type="button"
-            onClick={onCreatePage}
-            className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-          >
-            <Plus className="h-4 w-4" />
-            Nueva página
-          </button>
+          <NewPageMenu onCreate={onCreatePage}>
+            <button
+              type="button"
+              className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
+            >
+              <Plus className="h-4 w-4" />
+              Nueva página
+            </button>
+          </NewPageMenu>
         </div>
       </aside>
     </>
@@ -478,5 +480,44 @@ function PageRow({
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  )
+}
+
+/** Choose what kind of page to create. */
+function NewPageMenu({
+  onCreate,
+  children,
+}: {
+  onCreate: (type: NewPageType) => void
+  children: React.ReactNode
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="top" className="w-72">
+        <DropdownMenuItem onClick={() => onCreate('board')} className="cursor-pointer items-start gap-2 py-2">
+          <span className="text-base leading-5">📋</span>
+          <span>
+            <span className="block text-sm">Tablero Kanban</span>
+            <span className="block text-xs text-muted-foreground">Columnas y tarjetas, como hasta ahora</span>
+          </span>
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => onCreate('databases')} className="cursor-pointer items-start gap-2 py-2">
+          <span className="text-base leading-5">🗃️</span>
+          <span>
+            <span className="block text-sm">Base de datos vacía</span>
+            <span className="block text-xs text-muted-foreground">Tabla con propiedades y vistas a medida</span>
+          </span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => onCreate('arquitectura')} className="cursor-pointer items-start gap-2 py-2">
+          <span className="text-base leading-5">🏛️</span>
+          <span>
+            <span className="block text-sm">Plantilla: Seguimiento de proyectos</span>
+            <span className="block text-xs text-muted-foreground">Proyectos, tareas, planos, honorarios y vencimientos (con ejemplos)</span>
+          </span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

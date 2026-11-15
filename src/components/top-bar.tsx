@@ -13,9 +13,11 @@ type Props = {
   /** Number of people the page is shared with (0 = private). */
   memberCount?: number
   onShare?: () => void
+  /** Show the "filter cards of this page" box (Kanban pages only). */
+  showFilter?: boolean
 }
 
-export function TopBar({ page, memberCount = 0, onShare }: Props) {
+export function TopBar({ page, memberCount = 0, onShare, showFilter = true }: Props) {
   const sidebarOpen = useWorkspace((s) => s.sidebarOpen)
   const setSidebarOpen = useWorkspace((s) => s.setSidebarOpen)
 
@@ -45,7 +47,7 @@ export function TopBar({ page, memberCount = 0, onShare }: Props) {
       </div>
 
       <div className="mx-auto flex-1 flex justify-center px-2">
-        <SearchBox />
+        {showFilter && <SearchBox />}
       </div>
 
       {page && onShare && (

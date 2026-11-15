@@ -11,8 +11,9 @@ import { CardDetailPanel } from '@/components/card-detail-panel'
 import { AppSidebar } from '@/components/app-sidebar'
 import { SearchDialog } from '@/components/search-dialog'
 import { ShareDialog } from '@/components/share-dialog'
+import { DatabasesWorkspace } from '@/components/db/databases-workspace'
 import * as api from '@/lib/api'
-import type { Page, PageSummary } from '@/lib/types'
+import type { NewPageType, Page, PageSummary } from '@/lib/types'
 import { useWorkspace } from '@/lib/workspace-store'
 import { useWorkspacePage } from '@/hooks/use-workspace-page'
 
@@ -58,8 +59,10 @@ function AppShell() {
   const [pages, setPages] = useState<PageSummary[] | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
   const [pageId, setPageId] = useState<string | null>(null)
-  const workspace = useWorkspacePage(pageId)
-  const { openCard, closeCard, setSearchQuery } = useWorkspace()
+  const currentKind = pages?.find((p) => p.id === pageId)?.kind
+  // The Kanban hook only loads Kanban pages; database pages have their own.
+  const workspace = useWorkspacePage(currentKind === 'board' ? pageId : null)
+  const { openCard, closeCard, setSearchQuery, openRow, closeRow } = useWorkspace()
   const sidebarOpen = useWorkspace((s) => s.sidebarOpen)
   const setSidebarOpen = useWorkspace((s) => s.setSidebarOpen)
 
@@ -102,6 +105,21 @@ function AppShell() {
         setPages(list)
         const last = readStorage(LAST_PAGE_KEY)
         setPageId(list.some((p) => p.id === last) ? last : list[0].id)
+
+        // Links copied from a database row: /?row=<id>
+        const rowParam = new URLSearchParams(window.location.search).get('row')
+        if (rowParam) {
+          window.history.replaceState(null, '', window.location.pathname)
+          try {
+            const detail = await api.fetchRowDetail(rowParam)
+            if (!cancelled && detail.pageId) {
+              setPageId(detail.pageId)
+              useWorkspace.getState().openRow(rowParam)
+            }
+          } catch {
+            toast.error('No se encontró la fila del enlace')
+          }
+        }
       } catch (err) {
         console.error('pages load failed', err)
         toast.error('No se pudieron cargar las páginas')
@@ -149,11 +167,20 @@ function AppShell() {
     (id: string) => {
       if (id !== pageId) {
         closeCard()
+        closeRow()
         setSearchQuery('')
       }
       setPageId(id)
     },
-    [pageId, closeCard, setSearchQuery]
+    [pageId, closeCard, closeRow, setSearchQuery]
+  )
+
+  const openRowOnPage = useCallback(
+    (targetPageId: string, rowId: string) => {
+      selectPage(targetPageId)
+      openRow(rowId)
+    },
+    [selectPage, openRow]
   )
 
   const openCardOnPage = useCallback(
@@ -173,9 +200,15 @@ function AppShell() {
     [pageId, workspace]
   )
 
-  async function handleCreatePage() {
+  async function handleCreatePage(type: NewPageType = 'board') {
     try {
-      const created = await api.createPage({ title: 'Sin título', icon: '📄' })
+      const created = await api.createPage(
+        type === 'board'
+          ? { title: 'Sin título', icon: '📄' }
+          : type === 'databases'
+            ? { title: 'Nueva base de datos', icon: '🗃️', kind: 'databases' }
+            : { title: 'Seguimiento de proyectos', kind: 'databases', template: 'arquitectura' }
+      )
       setPages((ps) => [...(ps ?? []), created])
       selectPage(created.id)
       toast.success('Página creada')
@@ -188,7 +221,7 @@ function AppShell() {
     const previous = pages
     setPages((ps) => ps?.map((p) => (p.id === id ? { ...p, title } : p)) ?? ps)
     try {
-      if (id === pageId) await workspace.updatePageMeta({ title })
+      if (id === pageId && currentKind === 'board') await workspace.updatePageMeta({ title })
       else await api.updatePage(id, { title })
     } catch {
       setPages(previous)
@@ -213,7 +246,7 @@ function AppShell() {
     const target = pages?.find((p) => p.id === id)
     if (!target || !pages || pages.length <= 1) return
     const ok = window.confirm(
-      `¿Eliminar la página "${target.title}"?\n\nSe borran todas sus columnas, tarjetas y comentarios. No se puede deshacer.`
+      `¿Eliminar la página "${target.title}"?\n\nSe borra todo su contenido (columnas, tarjetas, bases de datos y comentarios). No se puede deshacer.`
     )
     if (!ok) return
     try {
@@ -274,6 +307,7 @@ function AppShell() {
         pages={pages ?? []}
         onSelectPage={selectPage}
         onOpenCard={openCardOnPage}
+        onOpenRow={openRowOnPage}
       />
       {pageId && currentSummary && (
         <ShareDialog
@@ -286,6 +320,17 @@ function AppShell() {
           onLeft={() => dropPage(pageId)}
         />
       )}
+      {currentSummary?.kind === 'databases' && pageId ? (
+        <DatabasesWorkspace
+          key={pageId}
+          pageId={pageId}
+          memberCount={currentSummary.memberCount}
+          onShare={() => setShareOpen(true)}
+          onPageMetaChange={(payload) =>
+            setPages((ps) => ps?.map((p) => (p.id === pageId ? { ...p, ...payload } : p)) ?? ps)
+          }
+        />
+      ) : (
       <Workspace
         workspace={workspace}
         loadingPage={!pageId || workspace.loading}
@@ -293,6 +338,7 @@ function AppShell() {
         memberCount={currentSummary?.memberCount ?? 0}
         onShare={() => setShareOpen(true)}
       />
+      )}
     </div>
   )
 }

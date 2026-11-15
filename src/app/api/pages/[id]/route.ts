@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { getAuthUserId, isPageOwner, verifyPageOwnership } from '@/lib/auth-helpers'
 import { cardInclude } from '@/lib/card-include'
+import { databaseInclude, serializeDatabase, validLayout } from '@/lib/db-server'
 
 export async function GET(
   _req: Request,
@@ -34,6 +36,10 @@ export async function GET(
           },
         },
       },
+      databases: {
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        include: databaseInclude,
+      },
     },
   })
 
@@ -41,7 +47,7 @@ export async function GET(
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
 
-  const { columns, ...rest } = page
+  const { columns, databases, ...rest } = page
   return NextResponse.json({
     page: {
       ...rest,
@@ -52,6 +58,7 @@ export async function GET(
           favorite: favoritedBy.length > 0,
         })),
       })),
+      databases: databases.map(serializeDatabase),
     },
   })
 }
@@ -73,18 +80,21 @@ export async function PATCH(
 
   try {
     const body = await req.json()
-    const data: {
-      title?: string
-      subtitle?: string | null
-      icon?: string | null
-      coverUrl?: string | null
-    } = {}
+    const data: Prisma.PageUpdateInput = {}
     if (typeof body.title === 'string') data.title = body.title.trim()
     if (typeof body.subtitle === 'string')
       data.subtitle = body.subtitle.trim() || null
     if (typeof body.icon === 'string') data.icon = body.icon.trim() || null
-    if (typeof body.coverUrl === 'string')
+    // null removes the cover
+    if (body.coverUrl === null) data.coverUrl = null
+    else if (typeof body.coverUrl === 'string')
       data.coverUrl = body.coverUrl.trim() || null
+    if (body.layout !== undefined) {
+      if (!validLayout(body.layout)) {
+        return NextResponse.json({ error: 'Diseño de página inválido' }, { status: 400 })
+      }
+      data.layout = body.layout as Prisma.InputJsonValue
+    }
 
     const page = await db.page.update({ where: { id }, data })
     return NextResponse.json({ page })

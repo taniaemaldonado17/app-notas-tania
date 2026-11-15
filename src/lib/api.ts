@@ -11,6 +11,7 @@ import type {
   SearchResult,
   ShareInfo,
 } from '@/lib/types'
+import type { DatabaseDef, DbRow, PageLayout, PropertyDef, RowValue, ViewDef } from '@/lib/db-types'
 
 const API_BASE = '/api'
 
@@ -58,6 +59,9 @@ export async function fetchPages(): Promise<PageSummary[]> {
 export async function createPage(payload: {
   title: string
   icon?: string | null
+  kind?: 'board' | 'databases'
+  template?: 'arquitectura'
+  examples?: boolean
 }): Promise<PageSummary> {
   const data = await jsonFetch<{ page: PageSummary }>(`${API_BASE}/pages`, {
     method: 'POST',
@@ -142,6 +146,7 @@ export async function updatePage(
     subtitle: string | null
     icon: string | null
     coverUrl: string | null
+    layout: PageLayout
   }>
 ): Promise<Page> {
   const data = await jsonFetch<{ page: Page }>(
@@ -396,4 +401,68 @@ export async function registerUser(payload: {
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+/* ----------------------------- Databases ----------------------------- */
+
+export async function createDatabase(pageId: string, title?: string): Promise<DatabaseDef> {
+  const data = await jsonFetch<{ database: DatabaseDef }>(`${API_BASE}/databases`, {
+    method: 'POST',
+    body: JSON.stringify({ pageId, title }),
+  })
+  return data.database
+}
+
+export async function updateDatabase(
+  databaseId: string,
+  payload: Partial<{ title: string; icon: string | null; properties: PropertyDef[]; views: ViewDef[]; position: number }>
+): Promise<void> {
+  await jsonFetch(`${API_BASE}/databases/${databaseId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteDatabase(databaseId: string): Promise<void> {
+  await jsonFetch(`${API_BASE}/databases/${databaseId}`, { method: 'DELETE' })
+}
+
+export async function createRow(
+  databaseId: string,
+  payload: { title?: string; icon?: string | null; values?: Record<string, RowValue>; position?: number }
+): Promise<DbRow> {
+  const data = await jsonFetch<{ row: DbRow }>(`${API_BASE}/databases/${databaseId}/rows`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return data.row
+}
+
+export async function updateRow(
+  rowId: string,
+  payload: Partial<{ title: string; icon: string | null; values: Record<string, RowValue>; content: string | null; position: number }>
+): Promise<DbRow> {
+  const data = await jsonFetch<{ row: DbRow }>(`${API_BASE}/rows/${rowId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+  return data.row
+}
+
+export async function deleteRow(rowId: string): Promise<void> {
+  await jsonFetch(`${API_BASE}/rows/${rowId}`, { method: 'DELETE' })
+}
+
+export async function fetchRowDetail(
+  rowId: string
+): Promise<{ row: DbRow; pageId: string; content: string | null; comments: CardComment[] }> {
+  return jsonFetch(`${API_BASE}/rows/${rowId}`)
+}
+
+export async function addRowComment(rowId: string, text: string): Promise<CardComment> {
+  const data = await jsonFetch<{ comment: CardComment }>(`${API_BASE}/rows/${rowId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  })
+  return data.comment
 }

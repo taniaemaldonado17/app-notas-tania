@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { accessiblePageWhere, getAuthUserId } from '@/lib/auth-helpers'
 import { migrateLegacyFavorites } from '@/lib/favorites'
+import { createDatabasesPage } from '@/lib/db-server'
+import { buildArquitecturaTemplate } from '@/lib/templates/arquitectura'
 
 /** Pages the user owns plus pages shared with them. */
 export async function GET() {
@@ -17,6 +19,7 @@ export async function GET() {
     orderBy: { createdAt: 'asc' },
     select: {
       id: true,
+      kind: true,
       title: true,
       subtitle: true,
       icon: true,
@@ -52,6 +55,26 @@ export async function POST(req: Request) {
     const title = (body?.title ?? 'Nueva página').toString().trim()
     const subtitle = (body?.subtitle ?? '').toString().trim() || null
     const icon = (body?.icon ?? '').toString().trim() || null
+    const kind = body?.kind === 'databases' ? 'databases' : 'board'
+    const template = (body?.template ?? '').toString()
+
+    if (kind === 'databases') {
+      const built = template === 'arquitectura' ? buildArquitecturaTemplate(body?.examples !== false) : null
+      const id = await createDatabasesPage(userId, {
+        title: title || 'Nueva base de datos',
+        icon: icon ?? '🗃️',
+        subtitle,
+        template: built,
+      })
+      const created = await db.page.findUniqueOrThrow({
+        where: { id },
+        select: { id: true, kind: true, title: true, subtitle: true, icon: true, coverUrl: true, createdAt: true, updatedAt: true, user: { select: { name: true, email: true } } },
+      })
+      const { user, ...rest } = created
+      return NextResponse.json({
+        page: { ...rest, favorite: false, role: 'owner', ownerName: user.name || user.email, memberCount: 0 },
+      })
+    }
 
     const page = await db.page.create({
       data: {
@@ -70,6 +93,7 @@ export async function POST(req: Request) {
       },
       select: {
         id: true,
+        kind: true,
         title: true,
         subtitle: true,
         icon: true,

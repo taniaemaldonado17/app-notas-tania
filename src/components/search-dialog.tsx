@@ -25,10 +25,11 @@ type Props = {
   pages: PageSummary[]
   onSelectPage: (pageId: string) => void
   onOpenCard: (pageId: string, cardId: string) => void
+  onOpenRow: (pageId: string, rowId: string) => void
 }
 
 /** Ctrl+K search across every page and card. */
-export function SearchDialog({ pages, onSelectPage, onOpenCard }: Props) {
+export function SearchDialog({ pages, onSelectPage, onOpenCard, onOpenRow }: Props) {
   const open = useWorkspace((s) => s.searchDialogOpen)
   const setOpen = useWorkspace((s) => s.setSearchDialogOpen)
   const [query, setQuery] = useState('')
@@ -128,7 +129,7 @@ export function SearchDialog({ pages, onSelectPage, onOpenCard }: Props) {
             )}
 
             {!loading && results.length > 0 && (
-              <CommandGroup heading="Tarjetas">
+              <CommandGroup heading="Tarjetas y filas">
                 {results.map((r) => {
                   const preview = docPreview(r.description)
                   return (
@@ -136,12 +137,17 @@ export function SearchDialog({ pages, onSelectPage, onOpenCard }: Props) {
                       key={r.id}
                       value={`card-${r.id}`}
                       onSelect={() => {
-                        onOpenCard(r.pageId, r.id)
+                        if (r.kind === 'row') onOpenRow(r.pageId, r.id)
+                        else onOpenCard(r.pageId, r.id)
                         close()
                       }}
                       className="cursor-pointer items-start"
                     >
-                      <SquareKanban className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      {r.kind === 'row' && r.icon ? (
+                        <span className="mt-0.5 w-4 shrink-0 text-center text-sm leading-4">{r.icon}</span>
+                      ) : (
+                        <SquareKanban className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                      )}
                       <span className="min-w-0 flex-1">
                         <span className="block truncate">{r.title}</span>
                         <span className="block truncate text-xs text-muted-foreground">

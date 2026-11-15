@@ -1,3 +1,5 @@
+import type { DatabaseDef, PageLayout } from '@/lib/db-types'
+
 export type ChecklistItem = {
   id: string
   text: string
@@ -52,6 +54,9 @@ export type Column = {
 
 export type Page = {
   id: string
+  kind?: 'board' | 'databases'
+  layout?: PageLayout | null
+  databases?: DatabaseDef[]
   title: string
   subtitle: string | null
   icon: string | null
@@ -66,6 +71,7 @@ export type Page = {
 /** Page as listed in the sidebar (no columns). */
 export type PageSummary = {
   id: string
+  kind: 'board' | 'databases'
   title: string
   subtitle: string | null
   icon: string | null
@@ -104,6 +110,9 @@ export type FavoriteCard = {
 }
 
 export type SearchResult = {
+  /** 'card' = Kanban card; 'row' = database row (columnId is the database id) */
+  kind?: 'card' | 'row'
+  icon?: string | null
   id: string
   title: string
   description: string | null
@@ -119,3 +128,6 @@ export type User = {
   email?: string | null
   image?: string | null
 }
+
+/** Kinds of page the user can create from the sidebar. */
+export type NewPageType = 'board' | 'databases' | 'arquitectura'

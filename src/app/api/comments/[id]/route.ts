@@ -17,10 +17,13 @@ export async function DELETE(
     select: {
       userId: true,
       card: { select: { column: { select: { page: { select: { userId: true } } } } } },
+      row: { select: { database: { select: { page: { select: { userId: true } } } } } },
     },
   })
+  const pageOwnerId =
+    comment?.card?.column.page.userId ?? comment?.row?.database.page.userId ?? null
   // Only the author or the page owner can delete a comment.
-  if (!comment || (comment.userId !== userId && comment.card.column.page.userId !== userId)) {
+  if (!comment || (comment.userId !== userId && pageOwnerId !== userId)) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
 
