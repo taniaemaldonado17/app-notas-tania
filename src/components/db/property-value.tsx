@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { es } from 'date-fns/locale'
-import { AlertTriangle, Check, Plus, Search } from 'lucide-react'
+import { toast } from 'sonner'
+import { AlertTriangle, Check, Loader2, Paperclip, Plus, Search, Upload, X } from 'lucide-react'
+import * as api from '@/lib/api'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { Avatar, OptionChip, ProgressBar, RowChip } from '@/components/db/chips'
@@ -13,6 +15,7 @@ import {
   formatDate,
   formatNumber,
   isComputed,
+  isDriveFolderLink,
   newId,
   OPTION_COLORS,
   todayISO,
@@ -134,8 +137,28 @@ export function PropertyDisplay({
     case 'email':
     case 'phone': {
       if (typeof value !== 'string' || !value) return null
+      const uploaded = prop.type === 'url' && value.startsWith('/api/files/')
       const href =
-        prop.type === 'email' ? `mailto:${value}` : prop.type === 'phone' ? `tel:${value.replace(/\s/g, '')}` : /^https?:\/\//i.test(value) ? value : `https://${value}`
+        prop.type === 'email'
+          ? `mailto:${value}`
+          : prop.type === 'phone'
+            ? `tel:${value.replace(/\s/g, '')}`
+            : uploaded || /^https?:\/\//i.test(value)
+              ? value
+              : `https://${value}`
+      if (uploaded) {
+        return (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className={cn('inline-flex items-center gap-1 underline decoration-muted-foreground/50 underline-offset-2 hover:decoration-current', textCls)}
+          >
+            <Paperclip className="h-3 w-3 shrink-0" /> Archivo subido
+          </a>
+        )
+      }
       return (
         <a
           href={href}
@@ -201,9 +224,12 @@ export function PropertyCell({
   variant: 'table' | 'panel'
   className?: string
 }) {
-  const { ws } = useDb()
+  const { ws, ctx } = useDb()
   const [open, setOpen] = useState(false)
-  const computed = isComputed(prop.type)
+  // Backlinks are computed, but Notion lets you edit them from either side.
+  const computed = isComputed(prop.type) && prop.type !== 'backlink'
+  const resolved = prop.type === 'backlink' ? resolveValue(ctx, db, row, prop) : null
+  const isEmpty = prop.type === 'backlink' ? !Array.isArray(resolved) || resolved.length === 0 : !hasValue(row, prop)
 
   if (prop.type === 'checkbox') {
     return (
@@ -251,7 +277,7 @@ export function PropertyCell({
           )}
         >
           {display ?? null}
-          {variant === 'panel' && !hasValue(row, prop) && <span className="text-sm text-muted-foreground/70">Vacío</span>}
+          {variant === 'panel' && isEmpty && <span className="text-sm text-muted-foreground/70">Vacío</span>}
         </div>
       </PopoverAnchor>
       <PopoverContent
@@ -293,16 +319,25 @@ export function PropertyEditor({
   const set = (v: RowValue) => ws.updateRowValues(row.id, { [prop.id]: v })
 
   switch (prop.type) {
-    case 'text':
     case 'url':
+      return (
+        <UrlEditor
+          initial={typeof value === 'string' ? value : ''}
+          onCommit={(v) => {
+            set(v.trim() ? v.trim() : null)
+            onDone()
+          }}
+        />
+      )
+    case 'text':
     case 'email':
     case 'phone':
       return (
         <TextEditor
           initial={typeof value === 'string' ? value : ''}
           multiline={prop.type === 'text'}
-          type={prop.type === 'email' ? 'email' : prop.type === 'url' ? 'url' : prop.type === 'phone' ? 'tel' : 'text'}
-          placeholder={prop.type === 'url' ? 'https://…' : prop.type === 'email' ? 'nombre@ejemplo.com' : ''}
+          type={prop.type === 'email' ? 'email' : prop.type === 'phone' ? 'tel' : 'text'}
+          placeholder={prop.type === 'email' ? 'nombre@ejemplo.com' : ''}
           onCommit={(v) => {
             set(v.trim() ? v : null)
             onDone()
@@ -338,6 +373,8 @@ export function PropertyEditor({
       return <PersonEditor selected={Array.isArray(value) ? value : []} onChange={(ids) => set(ids.length ? ids : null)} />
     case 'relation':
       return <RelationEditor prop={prop} row={row} selected={Array.isArray(value) ? value : []} onChange={(ids) => set(ids.length ? ids : null)} />
+    case 'backlink':
+      return <BacklinkEditor prop={prop} row={row} />
     default:
       return <p className="p-3 text-xs text-muted-foreground">Esta propiedad se calcula sola.</p>
   }
@@ -401,6 +438,110 @@ function TextEditor({
       placeholder={placeholder}
       className="block h-9 w-full bg-transparent px-2.5 text-sm outline-none"
     />
+  )
+}
+
+function UrlEditor({ initial, onCommit }: { initial: string; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState(initial)
+  const [uploading, setUploading] = useState(false)
+  const committed = useRef(false)
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+  const onCommitRef = useRef(onCommit)
+  onCommitRef.current = onCommit
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const commit = (v: string) => {
+    if (committed.current) return
+    committed.current = true
+    onCommit(v)
+  }
+  // Closing the popover (click outside, Esc) also saves, once.
+  useEffect(
+    () => () => {
+      if (!committed.current && draftRef.current !== initial) onCommitRef.current(draftRef.current)
+    },
+    []
+  )
+
+  async function upload(file: File) {
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error('El archivo supera los 4 MB')
+      return
+    }
+    setUploading(true)
+    try {
+      const res = await api.uploadFile(file)
+      commit(res.url)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo subir el archivo')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const folder = isDriveFolderLink(draft)
+  const drive = /drive\.google\.com|docs\.google\.com/i.test(draft)
+
+  return (
+    <div>
+      <div className="flex items-center gap-1 pr-1">
+        <input
+          autoFocus
+          type="url"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit(draft)
+          }}
+          placeholder="Pegá un enlace…"
+          className="block h-9 w-full bg-transparent px-2.5 text-sm outline-none"
+        />
+        {draft && (
+          <button
+            type="button"
+            onClick={() => setDraft('')}
+            className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+            aria-label="Borrar enlace"
+            title="Borrar"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+      {folder ? (
+        <p className="border-t border-border px-2.5 py-2 text-xs text-amber-600 dark:text-amber-400">
+          Es el enlace de una <b>carpeta</b> de Drive: sirve como link, pero no se puede mostrar como imagen. Para una portada, abrí la
+          imagen en Drive → Compartir → «Cualquier persona con el enlace» y pegá ese enlace, o subila acá abajo.
+        </p>
+      ) : drive ? (
+        <p className="border-t border-border px-2.5 py-2 text-xs text-muted-foreground">
+          Para que se vea como portada, la imagen tiene que estar compartida con «Cualquier persona con el enlace».
+        </p>
+      ) : null}
+      <div className="border-t border-border p-1">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*,application/pdf"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            e.target.value = ''
+            if (f) void upload(f)
+          }}
+        />
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => fileRef.current?.click()}
+          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-60"
+        >
+          {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 text-muted-foreground" />}
+          {uploading ? 'Subiendo…' : 'Subir imagen o archivo (máx. 4 MB)'}
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -661,6 +802,93 @@ function RelationEditor({
         )}
         {!candidates.length && !query.trim() && (
           <p className="px-2 py-2 text-xs text-muted-foreground">{target.title} todavía no tiene filas.</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Edits a backlink from the "other side": linking a row here sets this row in
+ * the source row's relation property (e.g. a task's "Proyecto").
+ */
+function BacklinkEditor({ prop, row }: { prop: PropertyDef; row: DbRow }) {
+  const { getDatabase, ws } = useDb()
+  const [query, setQuery] = useState('')
+  const source = prop.backlinkDatabaseId ? getDatabase(prop.backlinkDatabaseId) : undefined
+  const pid = prop.backlinkPropertyId
+  const relationProp = source?.properties.find((p) => p.id === pid)
+
+  const linkedIds = (r: DbRow): string[] => {
+    const v = pid ? r.values[pid] : null
+    return Array.isArray(v) ? v : []
+  }
+
+  const candidates = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const rows = (source?.rows ?? []).filter((r) => !q || r.title.toLowerCase().includes(q))
+    // Linked rows first, then the rest in their usual order.
+    return [...rows]
+      .sort((a, b) => Number(linkedIds(b).includes(row.id)) - Number(linkedIds(a).includes(row.id)) || a.position - b.position)
+      .slice(0, 80)
+  }, [source, query, row.id, pid])
+
+  if (!source || !pid || !relationProp) {
+    return <p className="p-3 text-xs text-muted-foreground">La relación de origen ya no existe.</p>
+  }
+
+  function toggle(r: DbRow) {
+    const cur = linkedIds(r)
+    const next = cur.includes(row.id) ? cur.filter((x) => x !== row.id) : [...cur, row.id]
+    ws.updateRowValues(r.id, { [pid!]: next.length ? next : null })
+  }
+
+  return (
+    <div className="flex max-h-80 flex-col">
+      <div className="flex items-center gap-2 border-b border-border px-2.5">
+        <Search className="h-3.5 w-3.5 text-muted-foreground" />
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={`Buscar o crear en ${source.title}`}
+          className="h-9 flex-1 bg-transparent text-sm outline-none"
+        />
+      </div>
+      <div className="overflow-y-auto p-1">
+        <p className="px-2 py-1 text-[11px] text-muted-foreground">
+          Vincular filas de {source.icon} {source.title} (completa su «{relationProp.name}»)
+        </p>
+        {candidates.map((r) => {
+          const on = linkedIds(r).includes(row.id)
+          return (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => toggle(r)}
+              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+            >
+              <span className="w-4 shrink-0 text-center text-xs">{r.icon || '📄'}</span>
+              <span className="min-w-0 flex-1 truncate">{r.title || 'Sin título'}</span>
+              {on && <Check className="h-3.5 w-3.5 text-muted-foreground" />}
+            </button>
+          )
+        })}
+        {query.trim() && !candidates.some((r) => r.title.toLowerCase() === query.trim().toLowerCase()) && (
+          <button
+            type="button"
+            onClick={async () => {
+              await ws.createRow(source.id, { title: query.trim(), values: { [pid]: [row.id] } })
+              setQuery('')
+            }}
+            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+          >
+            <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+            Crear «{query.trim()}» en {source.title}
+          </button>
+        )}
+        {!candidates.length && !query.trim() && (
+          <p className="px-2 py-2 text-xs text-muted-foreground">Escribí un nombre para crear la primera.</p>
         )}
       </div>
     </div>

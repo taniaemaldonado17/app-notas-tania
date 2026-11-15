@@ -18,6 +18,7 @@ import { RowMenu } from '@/components/db/row-menu'
 import { resolveValue } from '@/lib/db-resolve'
 import {
   getProperty,
+  imageSrcFromLink,
   todayISO,
   type DatabaseDef,
   type DbRow,
@@ -42,6 +43,27 @@ function hasDisplayValue(row: DbRow, prop: PropertyDef): boolean {
   const v = row.values[prop.id]
   if (v === undefined || v === null || v === '' || v === false) return false
   return !(Array.isArray(v) && v.length === 0)
+}
+
+function CardCover({ src, icon }: { src: string | null; icon: string | null }) {
+  // Remember which src failed so a broken link shows the icon instead of a broken image.
+  const [failed, setFailed] = useState<string | null>(null)
+  return (
+    <div className="h-32 w-full bg-muted/60">
+      {src && failed !== src ? (
+        <img
+          src={src}
+          alt=""
+          className="h-full w-full object-cover"
+          draggable={false}
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(src)}
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center text-3xl opacity-50">{icon || '📄'}</div>
+      )}
+    </div>
+  )
 }
 
 function RowCard({
@@ -74,15 +96,7 @@ function RowCard({
         dragging && 'opacity-60 shadow-lg'
       )}
     >
-      {cover && (
-        <div className="h-32 w-full bg-muted/60">
-          {typeof coverUrl === 'string' && coverUrl ? (
-            <img src={coverUrl} alt="" className="h-full w-full object-cover" draggable={false} />
-          ) : (
-            <div className="flex h-full items-center justify-center text-3xl opacity-50">{row.icon || '📄'}</div>
-          )}
-        </div>
-      )}
+      {cover && <CardCover src={imageSrcFromLink(coverUrl)} icon={row.icon} />}
       <div className="space-y-1.5 p-2.5">
         <div className="flex items-start gap-1.5 pr-6">
           {row.icon && <span className="shrink-0 text-sm leading-5">{row.icon}</span>}

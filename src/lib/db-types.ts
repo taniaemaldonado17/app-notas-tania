@@ -352,6 +352,33 @@ export function barRatio(value: number | null | undefined, format: NumberFormat 
 
 const dateFmt = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
 
+/** True for a Google Drive folder link, which can never be shown as an image. */
+export function isDriveFolderLink(value: string): boolean {
+  return /drive\.google\.com\/(drive\/)?(u\/\d+\/)?folders\//i.test(value)
+}
+
+/**
+ * Turns a link the user pasted into something an <img> can load:
+ * Google Drive file links become Drive thumbnails, Dropbox share links get
+ * raw=1, uploaded files (/api/files/…) and plain image URLs pass through.
+ * Returns null for links that cannot be an image (e.g. Drive folders).
+ */
+export function imageSrcFromLink(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const v = value.trim()
+  if (!v) return null
+  if (v.startsWith('/api/files/')) return v
+  if (isDriveFolderLink(v)) return null
+  const drive =
+    v.match(/drive\.google\.com\/file\/(?:u\/\d+\/)?d\/([\w-]{10,})/i) ??
+    v.match(/drive\.google\.com\/(?:open|uc|thumbnail)\?(?:[^#]*&)?id=([\w-]{10,})/i) ??
+    v.match(/docs\.google\.com\/[^/]+\/d\/([\w-]{10,})/i)
+  if (drive) return `https://drive.google.com/thumbnail?id=${drive[1]}&sz=w1600`
+  const url = /^https?:\/\//i.test(v) ? v : `https://${v}`
+  if (/dropbox\.com\//i.test(url)) return url.replace(/([?&])dl=0/, '$1raw=1')
+  return url
+}
+
 /** 'YYYY-MM-DD' → '15 nov 2026' */
 export function formatDate(value: unknown): string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(value)) return ''
