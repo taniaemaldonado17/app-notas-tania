@@ -15,6 +15,13 @@ export type Attachment = {
   createdAt: string
 }
 
+export type CardComment = {
+  id: string
+  text: string
+  createdAt: string
+  user: { name: string | null; email: string }
+}
+
 export type Card = {
   id: string
   title: string
@@ -26,6 +33,7 @@ export type Card = {
   columnId: string
   checklist: ChecklistItem[]
   attachments: Attachment[]
+  comments: CardComment[]
   createdAt: string
   updatedAt: string
 }

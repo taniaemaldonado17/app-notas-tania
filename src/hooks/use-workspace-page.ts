@@ -179,7 +179,7 @@ export function useWorkspacePage(pageId: string | null) {
   /* ---------------------------- Cards --------------------------- */
 
   const createCard = useCallback(
-    async (columnId: string, title: string) => {
+    async (columnId: string, title: string, description?: string | null) => {
       const current = pageRef.current
       if (!current) return
       const previous = current
@@ -198,7 +198,7 @@ export function useWorkspacePage(pageId: string | null) {
                   {
                     id: tempId,
                     title,
-                    description: null,
+                    description: description ?? null,
                     coverUrl: null,
                     accentColor: c.accentColor ?? null,
                     icon: null,
@@ -206,6 +206,7 @@ export function useWorkspacePage(pageId: string | null) {
                     columnId,
                     checklist: [],
                     attachments: [],
+                    comments: [],
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
                   },
@@ -217,7 +218,7 @@ export function useWorkspacePage(pageId: string | null) {
       pageRef.current = optimistic
       setState((s) => ({ ...s, page: optimistic }))
       try {
-        const card = await api.createCard({ columnId, title })
+        const card = await api.createCard({ columnId, title, description })
         // Use the latest state (preserves any concurrent edits) and just swap
         // the temp id for the real id returned by the server.
         const latest = pageRef.current ?? optimistic
@@ -607,7 +608,59 @@ export function useWorkspacePage(pageId: string | null) {
     []
   )
 
+  /* --------------------------- Comments ------------------------- */
+
+  /** Replace one card in the latest page state. */
+  const patchCard = useCallback((cardId: string, fn: (card: Card) => Card) => {
+    const current = pageRef.current
+    if (!current) return
+    const next: Page = {
+      ...current,
+      columns: current.columns.map((c) => ({
+        ...c,
+        cards: c.cards.map((k) => (k.id === cardId ? fn(k) : k)),
+      })),
+    }
+    pageRef.current = next
+    setState((s) => ({ ...s, page: next }))
+  }, [])
+
+  const addComment = useCallback(
+    async (cardId: string, text: string) => {
+      try {
+        const comment = await api.addComment(cardId, text)
+        patchCard(cardId, (k) => ({
+          ...k,
+          comments: [...(k.comments ?? []), comment],
+        }))
+      } catch (err) {
+        toast.error('No se pudo guardar el comentario')
+      }
+    },
+    [patchCard]
+  )
+
+  const deleteComment = useCallback(
+    async (cardId: string, commentId: string) => {
+      const previous = pageRef.current
+      patchCard(cardId, (k) => ({
+        ...k,
+        comments: (k.comments ?? []).filter((c) => c.id !== commentId),
+      }))
+      try {
+        await api.deleteComment(commentId)
+      } catch (err) {
+        pageRef.current = previous
+        setState((s) => ({ ...s, page: previous }))
+        toast.error('No se pudo eliminar el comentario')
+      }
+    },
+    [patchCard]
+  )
+
   return {
+    addComment,
+    deleteComment,
     page: state.page,
     loading: state.loading,
     error: state.error,

@@ -1,165 +1,161 @@
 /**
- * Block-based content for cards.
+ * Card content, stored as a JSON string in `Card.description`.
  *
- * Blocks are stored as a JSON-encoded string in `Card.description`
- * so we don't need a DB migration. The schema is forward-compatible
- * with old plain-text/markdown descriptions: if parsing fails, the
- * text is treated as a single paragraph block.
+ * Current format (v2): `{"v":2,"blocks":[...]}` where `blocks` is a BlockNote
+ * document (rich text, toggles, nested blocks, images, tables…).
+ *
+ * Older content is still readable:
+ * - v1: a JSON array of flat `{ type, text, ... }` blocks → converted on load
+ * - plain text → one paragraph per line
  */
 
-export type BlockType =
-  | 'paragraph'
-  | 'h1'
-  | 'h2'
-  | 'h3'
-  | 'h4'
-  | 'list'
-  | 'code'
-  | 'quote'
-  | 'page'
-  | 'todo'
-  | 'image'
+// A BlockNote block. Kept loose on purpose: this module is also used by
+// lightweight components (card previews) that must not pull in the editor.
+export type DocBlock = Record<string, any>
 
-export type Block = {
-  id: string
-  type: BlockType
-  text: string
-  lang?: string // for code blocks
-  url?: string // for page blocks (link) or image blocks (image src)
-  checked?: boolean // for todo blocks
+type LegacyBlock = {
+  type: string
+  text?: string
+  lang?: string
+  url?: string
+  checked?: boolean
 }
 
-export type BlockMenuItem = {
-  type: BlockType
-  label: string
-  hint: string
-  keywords: string[]
-  icon: string // lucide icon name (we render via mapping)
-}
-
-export const BLOCK_MENU_ITEMS: BlockMenuItem[] = [
-  { type: 'h1', label: 'Encabezado 1', hint: 'Título grande', keywords: ['h1', 'heading', 'titulo', 'encabezado'], icon: 'Heading1' },
-  { type: 'h2', label: 'Encabezado 2', hint: 'Sub-título', keywords: ['h2', 'heading', 'subtitulo'], icon: 'Heading2' },
-  { type: 'h3', label: 'Encabezado 3', hint: 'Sub-sub-título', keywords: ['h3', 'heading'], icon: 'Heading3' },
-  { type: 'h4', label: 'Encabezado 4', hint: 'Sección pequeña', keywords: ['h4', 'heading'], icon: 'Heading4' },
-  { type: 'page', label: 'Página', hint: 'Enlace a subpágina', keywords: ['page', 'pagina', 'subpagina', 'link'], icon: 'FileText' },
-  { type: 'list', label: 'Lista', hint: 'Lista con viñetas', keywords: ['list', 'lista', 'bullet', 'vinneta'], icon: 'List' },
-  { type: 'todo', label: 'Tarea pendiente', hint: 'Casilla con checkbox', keywords: ['todo', 'tarea', 'checkbox', 'pendiente', 'check'], icon: 'CheckSquare' },
-  { type: 'code', label: 'Código', hint: 'Bloque de código', keywords: ['code', 'codigo', 'bloque', 'snippet'], icon: 'Code' },
-  { type: 'quote', label: 'Cita', hint: 'Bloque de cita', keywords: ['quote', 'cita', 'blockquote'], icon: 'Quote' },
-  { type: 'image', label: 'Imagen', hint: 'Imagen embebida', keywords: ['image', 'imagen', 'foto', 'picture'], icon: 'Image' },
-  { type: 'paragraph', label: 'Texto', hint: 'Párrafo simple', keywords: ['text', 'texto', 'paragraph', 'parrafo'], icon: 'Pilcrow' },
-]
-
-let _counter = 0
-export function newBlockId(): string {
-  _counter += 1
-  return `b_${Date.now().toString(36)}_${_counter}`
-}
-
-export function makeBlock(type: BlockType = 'paragraph', text = ''): Block {
-  const b: Block = { id: newBlockId(), type, text }
-  if (type === 'code') b.lang = 'plain'
-  if (type === 'page') b.url = ''
-  if (type === 'image') b.url = ''
-  if (type === 'todo') b.checked = false
-  return b
+function convertLegacyBlock(b: LegacyBlock): DocBlock | null {
+  const text = typeof b.text === 'string' ? b.text : ''
+  switch (b.type) {
+    case 'h1':
+    case 'h2':
+    case 'h3':
+    case 'h4':
+      return { type: 'heading', props: { level: Number(b.type[1]) }, content: text }
+    case 'list':
+      return { type: 'bulletListItem', content: text }
+    case 'todo':
+      return { type: 'checkListItem', props: { checked: !!b.checked }, content: text }
+    case 'code':
+      return {
+        type: 'codeBlock',
+        props: { language: b.lang && b.lang !== 'plain' ? b.lang : 'text' },
+        content: text,
+      }
+    case 'quote':
+      return { type: 'quote', content: text }
+    case 'page':
+      return {
+        type: 'paragraph',
+        content: b.url
+          ? [{ type: 'link', href: b.url, content: text || b.url }]
+          : text,
+      }
+    case 'image':
+      return b.url ? { type: 'image', props: { url: b.url, caption: text } } : null
+    default:
+      return { type: 'paragraph', content: text }
+  }
 }
 
 /**
- * Parse a stored description string into a list of blocks.
- *
- * - JSON array of blocks → returned directly (after sanitising ids/types)
- * - Plain text or markdown → wrapped as a single paragraph block
- * - null/empty → empty array
+ * Parse a stored description into BlockNote blocks.
+ * Returns an empty array when there is no content.
  */
-export function parseBlocks(raw: string | null | undefined): Block[] {
+export function parseDoc(raw: string | null | undefined): DocBlock[] {
   if (!raw || !raw.trim()) return []
-  // Try JSON first
-  if (raw.trim().startsWith('[')) {
+  const trimmed = raw.trim()
+
+  if (trimmed.startsWith('{')) {
     try {
-      const arr = JSON.parse(raw)
+      const obj = JSON.parse(trimmed)
+      if (obj && obj.v === 2 && Array.isArray(obj.blocks)) return obj.blocks
+    } catch {
+      // fall through to plain text
+    }
+  }
+
+  if (trimmed.startsWith('[')) {
+    try {
+      const arr = JSON.parse(trimmed)
       if (Array.isArray(arr)) {
         return arr
           .filter((x) => x && typeof x === 'object' && typeof x.type === 'string')
-          .map((x) => {
-            const b: Block = {
-              id: typeof x.id === 'string' ? x.id : newBlockId(),
-              type: x.type as BlockType,
-              text: typeof x.text === 'string' ? x.text : '',
-            }
-            if (b.type === 'code' && typeof x.lang === 'string') b.lang = x.lang
-            if ((b.type === 'page' || b.type === 'image') && typeof x.url === 'string') b.url = x.url
-            if (b.type === 'todo' && typeof x.checked === 'boolean') b.checked = x.checked
-            return b
-          })
+          .map((x) => convertLegacyBlock(x as LegacyBlock))
+          .filter((x): x is DocBlock => x !== null)
       }
     } catch {
       // fall through to plain text
     }
   }
-  // Plain text / markdown fallback
-  return [makeBlock('paragraph', raw)]
+
+  return raw
+    .split(/\r?\n/)
+    .map((line) => ({ type: 'paragraph', content: line }))
 }
 
-/**
- * Returns true if a block is "empty" (no meaningful content).
- * Used to trim trailing empty blocks before saving.
- */
-export function isBlockEmpty(b: Block): boolean {
-  // Paragraph / heading / list / quote / todo: empty if no text
-  if (['paragraph', 'h1', 'h2', 'h3', 'h4', 'list', 'quote', 'todo'].includes(b.type)) {
-    return !b.text.trim()
+/** Plain text of a block's own inline content (not its children). */
+function inlineText(content: unknown): string {
+  if (!content) return ''
+  if (typeof content === 'string') return content
+  if (Array.isArray(content)) {
+    return content
+      .map((node) => {
+        if (!node || typeof node !== 'object') return ''
+        const n = node as DocBlock
+        if (typeof n.text === 'string') return n.text
+        if (n.content) return inlineText(n.content)
+        return ''
+      })
+      .join('')
   }
-  // Image: empty if no url
-  if (b.type === 'image') return !b.url
-  // Page: empty if no text AND no url
-  if (b.type === 'page') return !b.text.trim() && !b.url
-  // Code: empty if no text
-  if (b.type === 'code') return !b.text.trim()
-  return !b.text.trim()
-}
-
-/**
- * Trim trailing empty blocks (paragraphs with no text, etc.) so the saved
- * content stays clean — matches Notion's behaviour where pressing Enter at
- * the end of the last block and then leaving doesn't leave stray empty
- * blocks behind.
- */
-export function trimTrailingEmptyBlocks(blocks: Block[]): Block[] {
-  if (!blocks || blocks.length === 0) return []
-  const result = [...blocks]
-  while (result.length > 1 && isBlockEmpty(result[result.length - 1])) {
-    result.pop()
+  if (typeof content === 'object') {
+    // Table content: { type: 'tableContent', rows: [{ cells: [...] }] }
+    const rows = (content as DocBlock).rows
+    if (Array.isArray(rows)) {
+      return rows
+        .map((r: DocBlock) =>
+          (Array.isArray(r.cells) ? r.cells : [])
+            .map((c: unknown) => inlineText((c as DocBlock)?.content ?? c))
+            .join(' ')
+        )
+        .join(' ')
+    }
   }
-  return result
+  return ''
+}
+
+function blockHasContent(b: DocBlock): boolean {
+  if (inlineText(b.content).trim()) return true
+  if (b.props?.url) return true
+  if (b.type && !['paragraph', 'heading', 'quote', 'bulletListItem', 'numberedListItem', 'checkListItem', 'toggleListItem', 'codeBlock', 'image', 'file', 'video', 'audio'].includes(b.type)) {
+    // Dividers, tables, etc. count as content by themselves.
+    return true
+  }
+  return Array.isArray(b.children) && b.children.some(blockHasContent)
 }
 
 /**
- * Serialise a list of blocks to a string suitable for `Card.description`.
- *
- * - Empty array → null (so the column stays clean)
- * - All-empty blocks → null
- * - Single empty paragraph → null
- * - Otherwise → JSON string (after trimming trailing empty blocks)
+ * Serialise BlockNote blocks for `Card.description`.
+ * Returns null when the document has no meaningful content.
  */
-export function serializeBlocks(blocks: Block[]): string | null {
+export function serializeDoc(blocks: DocBlock[] | null | undefined): string | null {
   if (!blocks || blocks.length === 0) return null
-  const trimmed = trimTrailingEmptyBlocks(blocks)
-  if (trimmed.length === 0) return null
-  if (trimmed.length === 1 && trimmed[0].type === 'paragraph' && !trimmed[0].text.trim()) {
-    return null
-  }
-  return JSON.stringify(trimmed)
+  if (!blocks.some(blockHasContent)) return null
+  return JSON.stringify({ v: 2, blocks })
 }
 
-/**
- * Build a short preview string for a card snippet (used in the card thumbnail).
- */
-export function blocksPreview(blocks: Block[]): string {
-  if (!blocks.length) return ''
-  const first = blocks.find((b) => b.text.trim()) ?? blocks[0]
-  if (first.type === 'image') return '[Imagen]'
-  if (first.type === 'todo') return first.checked ? `[x] ${first.text}` : `[ ] ${first.text}`
-  return first.text.replace(/[#*_`>-]/g, '').slice(0, 60)
+/** Short one-line preview of a stored description (for card thumbnails). */
+export function docPreview(raw: string | null | undefined): string {
+  const blocks = parseDoc(raw)
+  const walk = (list: DocBlock[]): string => {
+    for (const b of list) {
+      const text = inlineText(b.content).trim()
+      if (text) return text
+      if (b.type === 'image' && b.props?.url) return '[Imagen]'
+      if (Array.isArray(b.children)) {
+        const inner = walk(b.children)
+        if (inner) return inner
+      }
+    }
+    return ''
+  }
+  return walk(blocks).slice(0, 60)
 }

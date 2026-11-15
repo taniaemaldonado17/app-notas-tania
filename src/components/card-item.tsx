@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -10,6 +10,7 @@ import {
   Image as ImageIcon,
   Check,
   ListChecks,
+  MessageSquare,
   Paperclip,
   Star,
   Pencil,
@@ -47,7 +48,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
 import type { Card } from '@/lib/types'
-import { parseBlocks, blocksPreview } from '@/lib/blocks'
+import { docPreview } from '@/lib/blocks'
 import { checklistProgress, cardAccentStyle } from '@/hooks/use-workspace-page'
 import { cn, hexToRgba } from '@/lib/utils'
 
@@ -86,6 +87,7 @@ export function CardItem({ card, dimmed, workspace, onOpen }: Props) {
 
   const accentStyle = cardAccentStyle(card)
   const progress = checklistProgress(card)
+  const preview = useMemo(() => docPreview(card.description), [card.description])
 
   function handleTitleClick(e: React.MouseEvent) {
     const target = e.target as HTMLElement
@@ -105,7 +107,7 @@ export function CardItem({ card, dimmed, workspace, onOpen }: Props) {
 
   async function handleDuplicate() {
     try {
-      await workspace.createCard(card.columnId, `${card.title} (copia)`)
+      await workspace.createCard(card.columnId, `${card.title} (copia)`, card.description)
       toast.success('Tarjeta duplicada')
     } catch {
       toast.error('No se pudo duplicar')
@@ -287,13 +289,20 @@ export function CardItem({ card, dimmed, workspace, onOpen }: Props) {
                 />
 
                 {/* Meta row */}
-                {(card.description || progress.total > 0 || card.attachments?.length > 0) && (
+                {(preview || progress.total > 0 || card.attachments?.length > 0 || card.comments?.length > 0) && (
                   <div className="mt-1 flex flex-wrap items-center gap-2 px-1 text-xs text-muted-foreground">
-                    {card.description && (
+                    {preview && (
                       <span className="flex items-center gap-1 truncate">
-                        <span className="line-clamp-1 max-w-44">
-                          {blocksPreview(parseBlocks(card.description))}
-                        </span>
+                        <span className="line-clamp-1 max-w-44">{preview}</span>
+                      </span>
+                    )}
+                    {card.comments?.length > 0 && (
+                      <span
+                        className="inline-flex items-center gap-1 text-[11px] font-medium"
+                        title="Comentarios"
+                      >
+                        <MessageSquare className="h-3 w-3" />
+                        {card.comments.length}
                       </span>
                     )}
                     {progress.total > 0 && (

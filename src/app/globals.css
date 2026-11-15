@@ -178,6 +178,46 @@
   pointer-events: none;
 }
 
+/* Rich block editor (BlockNote) — match the app's theme tokens */
+.bn-container.rich-editor[data-color-scheme],
+.bn-container[data-color-scheme] {
+  --bn-colors-editor-background: transparent;
+  --bn-colors-editor-text: var(--foreground);
+  --bn-colors-menu-background: var(--popover);
+  --bn-colors-menu-text: var(--popover-foreground);
+  --bn-colors-tooltip-background: var(--popover);
+  --bn-colors-tooltip-text: var(--popover-foreground);
+  --bn-colors-hovered-background: var(--accent);
+  --bn-colors-hovered-text: var(--accent-foreground);
+  --bn-colors-selected-background: var(--accent);
+  --bn-colors-selected-text: var(--accent-foreground);
+  --bn-colors-side-menu: var(--muted-foreground);
+  --bn-font-family: inherit;
+  /* Menus must float above the card side panel (z-50). */
+  --bn-ui-base-z-index: 60;
+}
+.rich-editor .bn-editor {
+  padding-inline: 44px 8px;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.rich-editor .bn-inline-content code {
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--muted-foreground) 18%, transparent);
+  padding: 0.1em 0.35em;
+  font-size: 0.85em;
+  color: #eb5757;
+}
+.rich-editor a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+  text-underline-offset: 3px;
+}
+.rich-editor a:hover {
+  text-decoration-color: currentColor;
+}
+
 /* Drag preview lift */
 .dragging-card {
   cursor: grabbing !important;

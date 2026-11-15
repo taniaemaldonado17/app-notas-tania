@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUserId, verifyColumnOwnership } from '@/lib/auth-helpers'
+import { cardInclude } from '@/lib/card-include'
 
 export async function POST(req: Request) {
   const userId = await getAuthUserId()
@@ -12,7 +13,7 @@ export async function POST(req: Request) {
     const body = await req.json()
     const columnId = (body?.columnId ?? '').toString()
     const title = (body?.title ?? '').toString().trim()
-    const description = (body?.description ?? '').toString().trim() || null
+    const description = (body?.description ?? '').toString() || null
     const accentColor = (body?.accentColor ?? '').toString().trim() || null
 
     if (!columnId) {
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
         position,
         columnId,
       },
-      include: { checklist: true, attachments: true },
+      include: cardInclude,
     })
 
     return NextResponse.json({ card })

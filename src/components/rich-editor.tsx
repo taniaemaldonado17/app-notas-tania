@@ -1,0 +1,71 @@
+'use client'
+
+import { useEffect } from 'react'
+import { useTheme } from 'next-themes'
+import type { BlockNoteEditor } from '@blocknote/core'
+import { es } from '@blocknote/core/locales'
+import { useCreateBlockNote } from '@blocknote/react'
+import { BlockNoteView } from '@blocknote/mantine'
+import '@blocknote/mantine/style.css'
+import type { DocBlock } from '@/lib/blocks'
+import { uploadFile } from '@/lib/api'
+
+// Spanish UI, with the toggle block named as in Notion ("Lista desplegable").
+const dictionary = {
+  ...es,
+  slash_menu: {
+    ...es.slash_menu,
+    toggle_list: {
+      ...es.slash_menu.toggle_list,
+      title: 'Lista desplegable',
+      aliases: [
+        ...es.slash_menu.toggle_list.aliases,
+        'desplegable',
+        'lista desplegable',
+        'toggle',
+      ],
+    },
+  },
+}
+
+type Props = {
+  /** Blocks to load when the editor mounts. Later changes are ignored. */
+  initialBlocks: DocBlock[]
+  onChange: (blocks: DocBlock[]) => void
+  /** Gives the parent access to the editor (e.g. for Markdown export). */
+  onReady?: (editor: BlockNoteEditor | null) => void
+}
+
+/**
+ * Rich block editor for card content: inline formatting, links, colours,
+ * toggle lists, nested blocks, to-dos, code, tables and images.
+ * Type "/" for the block menu; select text for the formatting toolbar.
+ *
+ * Must be loaded client-side only (see card-detail-panel.tsx).
+ */
+export default function RichEditor({ initialBlocks, onChange, onReady }: Props) {
+  const { resolvedTheme } = useTheme()
+
+  const editor = useCreateBlockNote({
+    dictionary,
+    initialContent: initialBlocks.length > 0 ? (initialBlocks as any) : undefined,
+    uploadFile: async (file: File) => {
+      const result = await uploadFile(file)
+      return result.url
+    },
+  })
+
+  useEffect(() => {
+    onReady?.(editor as unknown as BlockNoteEditor)
+    return () => onReady?.(null)
+  }, [editor])
+
+  return (
+    <BlockNoteView
+      editor={editor}
+      theme={resolvedTheme === 'light' ? 'light' : 'dark'}
+      onChange={() => onChange(editor.document as unknown as DocBlock[])}
+      className="rich-editor"
+    />
+  )
+}

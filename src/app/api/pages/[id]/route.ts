@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUserId, verifyPageOwnership } from '@/lib/auth-helpers'
+import { cardInclude } from '@/lib/card-include'
 
 export async function GET(
   _req: Request,
@@ -25,10 +26,7 @@ export async function GET(
         include: {
           cards: {
             orderBy: { position: 'asc' },
-            include: {
-              checklist: { orderBy: { position: 'asc' } },
-              attachments: { orderBy: { position: 'asc' } },
-            },
+            include: cardInclude,
           },
         },
       },

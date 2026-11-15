@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
 import { useWorkspace } from '@/lib/workspace-store'
 import { useWorkspacePage, findCard } from '@/hooks/use-workspace-page'
@@ -9,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { InlineEdit } from '@/components/inline-edit'
-import { BlockEditor } from '@/components/block-editor'
+import { CommentsSection } from '@/components/comments-section'
 import { AttachmentsSection } from '@/components/attachments-section'
 import {
   DropdownMenu,
@@ -44,10 +45,19 @@ import {
   Smile,
 } from 'lucide-react'
 import type { Card } from '@/lib/types'
-import type { Block } from '@/lib/blocks'
-import { parseBlocks, serializeBlocks, blocksPreview } from '@/lib/blocks'
+import type { BlockNoteEditor } from '@blocknote/core'
+import type { DocBlock } from '@/lib/blocks'
+import { parseDoc, serializeDoc } from '@/lib/blocks'
 import { uploadImage } from '@/lib/api'
 import { formatDateAR, hexToRgba } from '@/lib/utils'
+
+// The editor touches the DOM on load, so it can only render in the browser.
+const RichEditor = dynamic(() => import('@/components/rich-editor'), {
+  ssr: false,
+  loading: () => (
+    <div className="px-11 py-2 text-sm text-muted-foreground">Cargando editor…</div>
+  ),
+})
 
 // Same options as in card-item.tsx for the personalization menu
 const ACCENT_OPTIONS = [
@@ -80,7 +90,7 @@ export function CardDetailPanel({ workspace }: Props) {
       className="notion-scroll w-full overflow-y-auto p-0 sm:max-w-none"
     >
       {card ? (
-        <PanelBody card={card} workspace={workspace} />
+        <PanelBody key={card.id} card={card} workspace={workspace} />
       ) : (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
           Cargando…
@@ -98,31 +108,39 @@ function PanelBody({
   workspace: ReturnType<typeof useWorkspacePage>
 }) {
   const { closeCard } = useWorkspace()
-  const [blocks, setBlocks] = useState<Block[]>([])
+  // PanelBody is keyed by card id, so this runs once per opened card.
+  const [initialBlocks] = useState<DocBlock[]>(() => parseDoc(card.description))
   const [newItemText, setNewItemText] = useState('')
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const editorRef = useRef<BlockNoteEditor | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingBlocksRef = useRef<DocBlock[] | null>(null)
+  const lastSavedRef = useRef<string | null>(card.description)
 
-  useEffect(() => {
-    setBlocks(parseBlocks(card.description))
-  }, [card.id])
-
-  // Debounced auto-save when blocks change.
-  // The local state keeps one trailing empty block so the user can keep
-  // typing, but when we save to the DB we trim trailing empty blocks so
-  // the saved content stays clean — matches Notion's behaviour.
-  function handleBlocksChange(next: Block[]) {
-    setBlocks(next)
+  function flushSave() {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(async () => {
-      const serialized = serializeBlocks(next)
-      const current = serializeBlocks(parseBlocks(card.description))
-      if (serialized !== current) {
-        await workspace.updateCard(card.id, { description: serialized })
-      }
-    }, 700)
+    saveTimerRef.current = null
+    const pending = pendingBlocksRef.current
+    if (!pending) return
+    pendingBlocksRef.current = null
+    const serialized = serializeDoc(pending)
+    if (serialized === lastSavedRef.current) return
+    lastSavedRef.current = serialized
+    workspace.updateCard(card.id, { description: serialized })
   }
+
+  // Debounced auto-save while typing.
+  function handleBlocksChange(next: DocBlock[]) {
+    pendingBlocksRef.current = next
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(flushSave, 700)
+  }
+
+  // Save whatever is still pending when the panel closes or switches card.
+  useEffect(() => {
+    return () => flushSave()
+  }, [])
 
   const accentStyle = card.accentColor
     ? {
@@ -187,7 +205,12 @@ function PanelBody({
   async function handleDuplicate() {
     try {
       // Create a copy of the card in the same column with "(copia)" suffix
-      await workspace.createCard(card.columnId, `${card.title} (copia)`)
+      flushSave()
+      await workspace.createCard(
+        card.columnId,
+        `${card.title} (copia)`,
+        lastSavedRef.current
+      )
       toast.success('Tarjeta duplicada')
     } catch {
       toast.error('No se pudo duplicar la tarjeta')
@@ -205,26 +228,18 @@ function PanelBody({
     lines.push(`> Creada: ${formatDateAR(card.createdAt)}`)
     lines.push(`> Actualizada: ${formatDateAR(card.updatedAt)}`)
     lines.push('')
-    // Content blocks
-    const blockLines: string[] = []
-    for (const b of parseBlocks(card.description)) {
-      switch (b.type) {
-        case 'h1': blockLines.push(`# ${b.text}`); break
-        case 'h2': blockLines.push(`## ${b.text}`); break
-        case 'h3': blockLines.push(`### ${b.text}`); break
-        case 'h4': blockLines.push(`#### ${b.text}`); break
-        case 'list': blockLines.push(`- ${b.text}`); break
-        case 'todo': blockLines.push(`- [${b.checked ? 'x' : ' '}] ${b.text}`); break
-        case 'code': blockLines.push('```' + (b.lang ?? ''), b.text, '```'); break
-        case 'quote': blockLines.push(`> ${b.text}`); break
-        case 'page': blockLines.push(`🔗 [${b.text}](${b.url ?? '#'})`); break
-        case 'image': blockLines.push(`![Imagen](${b.url})`); break
-        default: blockLines.push(b.text)
-      }
-      blockLines.push('')
+    // Content (converted from the editor's blocks)
+    const content = editorRef.current?.blocksToMarkdownLossy().trim()
+    if (content) {
+      lines.push('## Contenido', '', content, '')
     }
-    if (blockLines.length > 1) {
-      lines.push('## Contenido', '', ...blockLines)
+    // Comments
+    if (card.comments?.length > 0) {
+      lines.push('## Comentarios', '')
+      for (const c of card.comments) {
+        lines.push(`- **${c.user.name || c.user.email}** (${formatDateAR(c.createdAt)}): ${c.text}`)
+      }
+      lines.push('')
     }
     // Subtareas
     if (card.checklist.length > 0) {
@@ -611,22 +626,22 @@ function PanelBody({
           </DropdownMenu>
         </div>
 
-        {/* Block editor (Notion-style with /commands) */}
-        <section className="space-y-1">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Contenido
-          </h3>
-          <div className="rounded-md border border-transparent p-1 hover:border-border">
-            <BlockEditor
-              blocks={blocks}
-              onChange={handleBlocksChange}
-            />
-          </div>
-          {blocks.length === 0 && (
-            <p className="px-1 text-[11px] text-muted-foreground">
-              Tip: escribí <kbd className="rounded border border-border px-1">/</kbd> al inicio de un bloque vacío para elegir su tipo (Encabezado, Lista, Código, Cita, Página…).
-            </p>
-          )}
+        {/* Comments (above the content, like Notion) */}
+        <CommentsSection
+          comments={card.comments ?? []}
+          onAdd={(text) => workspace.addComment(card.id, text)}
+          onDelete={(commentId) => workspace.deleteComment(card.id, commentId)}
+        />
+
+        {/* Rich block editor: "/" for blocks, select text to format */}
+        <section className="-mx-5 border-t border-border pt-3">
+          <RichEditor
+            initialBlocks={initialBlocks}
+            onChange={handleBlocksChange}
+            onReady={(editor) => {
+              editorRef.current = editor
+            }}
+          />
         </section>
 
         {/* Subtareas (formerly "Lista de tareas") */}

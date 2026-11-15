@@ -20,6 +20,8 @@ model User {
   pages         Page[]
   sessions      Session[]
   accounts      Account[]
+  comments      Comment[]
+  uploads       Upload[]
 }
 
 model Page {
@@ -63,6 +65,7 @@ model Card {
   column      Column   @relation(fields: [columnId], references: [id], onDelete: Cascade)
   checklist   ChecklistItem[]
   attachments Attachment[]
+  comments    Comment[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -129,4 +132,32 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// Comments on a card (Notion-style discussion above the content)
+model Comment {
+  id        String   @id @default(cuid())
+  text      String
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([cardId])
+}
+
+// Uploaded files (images, PDFs). Stored in the database because the
+// hosting filesystem is not persistent. Served by /api/files/[id].
+model Upload {
+  id        String   @id @default(cuid())
+  name      String
+  mimeType  String
+  size      Int
+  data      Bytes
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

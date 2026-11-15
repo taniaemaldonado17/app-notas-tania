@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUserId, verifyCardOwnership } from '@/lib/auth-helpers'
+import { cardInclude } from '@/lib/card-include'
 
 export async function PATCH(
   req: Request,
@@ -30,7 +31,7 @@ export async function PATCH(
     } = {}
 
     if (typeof body.title === 'string') data.title = body.title.trim()
-    if (typeof body.description === 'string')
+    if (body.description === null || typeof body.description === 'string')
       data.description = body.description || null
     if (typeof body.coverUrl === 'string')
       data.coverUrl = body.coverUrl || null
@@ -59,10 +60,7 @@ export async function PATCH(
     const updated = await db.card.update({
       where: { id },
       data,
-      include: {
-        checklist: { orderBy: { position: 'asc' } },
-        attachments: { orderBy: { position: 'asc' } },
-      },
+      include: cardInclude,
     })
     return NextResponse.json({ card: updated })
   } catch (err) {

@@ -1,6 +1,7 @@
 import type {
   Attachment,
   Card,
+  CardComment,
   ChecklistItem,
   Column,
   Page,
@@ -270,6 +271,26 @@ export async function deleteAttachment(attachmentId: string): Promise<void> {
   await jsonFetch(`${API_BASE}/attachments/${attachmentId}`, {
     method: 'DELETE',
   })
+}
+
+/* ----------------------------- Comments ----------------------------- */
+
+export async function addComment(
+  cardId: string,
+  text: string
+): Promise<CardComment> {
+  const data = await jsonFetch<{ comment: CardComment }>(
+    `${API_BASE}/cards/${cardId}/comments`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }
+  )
+  return data.comment
+}
+
+export async function deleteComment(commentId: string): Promise<void> {
+  await jsonFetch(`${API_BASE}/comments/${commentId}`, { method: 'DELETE' })
 }
 
 /* ----------------------------- AI text ----------------------------- */
