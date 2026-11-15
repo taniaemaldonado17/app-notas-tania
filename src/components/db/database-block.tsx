@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useDb } from '@/components/db/db-context'
+import { EmojiPicker } from '@/components/emoji-picker'
 import { ViewToolbar } from '@/components/db/view-toolbar'
 import { TableView } from '@/components/db/table-view'
 import { BoardView, CalendarView, GalleryView, ListView } from '@/components/db/card-views'
@@ -130,7 +131,11 @@ export function DatabaseBlock({
         <div className="group/db flex items-center gap-2">
           {heading ?? (
             <>
-              <span className="text-lg leading-none">{db.icon || '🗃️'}</span>
+              <EmojiPicker onSelect={(e) => ws.updateDatabase(db.id, { icon: e })}>
+                <button type="button" className="rounded-md p-0.5 text-lg leading-none hover:bg-accent" title="Cambiar ícono" aria-label="Cambiar ícono">
+                  {db.icon || '🗃️'}
+                </button>
+              </EmojiPicker>
               {renaming ? (
                 <input
                   autoFocus
@@ -284,16 +289,6 @@ function DatabaseMenu({ db, onRename }: { db: DatabaseDef; onRename: () => void 
         <DropdownMenuItem onClick={onRename} className="cursor-pointer gap-2 text-sm">
           <Pencil className="h-3.5 w-3.5" />
           Cambiar nombre
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            const icon = window.prompt('Emoji del ícono', db.icon ?? '')
-            if (icon !== null) ws.updateDatabase(db.id, { icon: icon.trim().slice(0, 4) || null })
-          }}
-          className="cursor-pointer gap-2 text-sm"
-        >
-          <span className="w-3.5 text-center text-xs">{db.icon || '🙂'}</span>
-          Cambiar ícono
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

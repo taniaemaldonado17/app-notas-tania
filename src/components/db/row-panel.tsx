@@ -7,6 +7,7 @@ import { ArrowLeft, Copy, Link2, Loader2, Trash2 } from 'lucide-react'
 import { ResizableSidePanel } from '@/components/resizable-side-panel'
 import { Button } from '@/components/ui/button'
 import { CommentsSection } from '@/components/comments-section'
+import { EmojiPicker } from '@/components/emoji-picker'
 import { useDb } from '@/components/db/db-context'
 import { PropertyCell } from '@/components/db/property-value'
 import { AddPropertyButton, PropertyIcon, PropertyMenu } from '@/components/db/property-menu'
@@ -152,19 +153,19 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
       <div className="peek-body flex-1 space-y-5 overflow-y-auto px-5 pb-10 pt-6">
         {/* Icon + title */}
         <div className="space-y-1">
-          <input
-            defaultValue={row.icon ?? ''}
-            key={row.icon ?? ''}
-            maxLength={4}
-            placeholder="🙂"
-            onBlur={(e) => {
-              const v = e.target.value.trim() || null
-              if (v !== row.icon) ws.updateRowMeta(row.id, { icon: v })
-            }}
-            className="h-12 w-14 rounded bg-transparent text-4xl outline-none placeholder:opacity-30 hover:bg-accent/50 focus:bg-accent/50"
-            aria-label="Ícono"
-            title="Ícono (pegá un emoji)"
-          />
+          <EmojiPicker
+            onSelect={(e) => ws.updateRowMeta(row.id, { icon: e })}
+            onRemove={row.icon ? () => ws.updateRowMeta(row.id, { icon: null }) : undefined}
+          >
+            <button
+              type="button"
+              className="flex h-12 w-14 items-center justify-center rounded-lg text-4xl leading-none hover:bg-accent/60"
+              aria-label="Ícono"
+              title="Elegir ícono"
+            >
+              {row.icon || <span className="opacity-25">🙂</span>}
+            </button>
+          </EmojiPicker>
           <textarea
             value={title}
             onChange={(e) => setTitle(e.target.value)}

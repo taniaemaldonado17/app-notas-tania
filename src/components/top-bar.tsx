@@ -2,11 +2,16 @@
 
 import { useRef, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { NotebookPen, Loader2, Image as ImageIcon, Edit3, Menu, Share2, Users } from 'lucide-react'
+import { NotebookPen, Loader2, Image as ImageIcon, Edit3, Menu, Share2, Users, X } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace-store'
 import { SearchBox } from '@/components/search-box'
 import { UserMenu } from '@/components/user-menu'
+import { EmojiPicker } from '@/components/emoji-picker'
+import { cn } from '@/lib/utils'
 import type { Page } from '@/lib/types'
+
+/** Stored in Page.coverUrl when the user removed the cover entirely. */
+export const NO_COVER = 'none'
 
 type Props = {
   page: Page | null
@@ -91,8 +96,7 @@ export function CoverBanner({
   const [titleDraft, setTitleDraft] = useState(page?.title ?? '')
   const [editingSubtitle, setEditingSubtitle] = useState(false)
   const [subtitleDraft, setSubtitleDraft] = useState(page?.subtitle ?? '')
-  const [editingIcon, setEditingIcon] = useState(false)
-  const [iconDraft, setIconDraft] = useState(page?.icon ?? '')
+  const coverHidden = page?.coverUrl === NO_COVER
 
   // keep drafts in sync when page changes externally
   if (!editingTitle && titleDraft !== (page?.title ?? '')) {
@@ -100,9 +104,6 @@ export function CoverBanner({
   }
   if (!editingSubtitle && subtitleDraft !== (page?.subtitle ?? '')) {
     setSubtitleDraft(page?.subtitle ?? '')
-  }
-  if (!editingIcon && iconDraft !== (page?.icon ?? '')) {
-    setIconDraft(page?.icon ?? '')
   }
 
   async function handleCoverFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -131,74 +132,44 @@ export function CoverBanner({
         onChange={handleCoverFile}
         className="hidden"
       />
-      {page?.coverUrl ? (
-        <div className="relative h-48 w-full overflow-hidden sm:h-56">
-          { }
-          <img
-            src={page.coverUrl}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-          <button
-            onClick={() => onCoverChange(null)}
-            className="absolute right-3 top-3 rounded-md bg-black/40 px-2 py-1 text-xs text-white hover:bg-black/60"
-          >
-            Quitar portada
-          </button>
-        </div>
-      ) : (
-        <div className="cover-water relative h-48 w-full sm:h-56">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="absolute right-3 top-3 flex items-center gap-1 rounded-md bg-black/40 px-2 py-1 text-xs text-white hover:bg-black/60"
-            title="Cambiar portada"
-          >
-            <ImageIcon className="h-3 w-3" />
-            Cambiar portada
-          </button>
+      {coverHidden ? null : (
+        <div className={cn('group/cover relative h-48 w-full overflow-hidden sm:h-56', !page?.coverUrl && 'cover-water')}>
+          {page?.coverUrl && <img src={page.coverUrl} alt="" className="h-full w-full object-cover" />}
+          <div className="absolute right-3 top-3 flex gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/cover:opacity-100 [@media(hover:none)]:opacity-100">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1 rounded-md bg-black/45 px-2 py-1 text-xs text-white backdrop-blur hover:bg-black/65"
+            >
+              <ImageIcon className="h-3 w-3" />
+              Cambiar portada
+            </button>
+            <button
+              onClick={() => onCoverChange(NO_COVER)}
+              className="flex items-center gap-1 rounded-md bg-black/45 px-2 py-1 text-xs text-white backdrop-blur hover:bg-black/65"
+            >
+              <X className="h-3 w-3" />
+              Quitar portada
+            </button>
+          </div>
         </div>
       )}
 
       {/* Title section */}
-      <div className="mx-auto max-w-5xl px-6 pb-6 pt-4">
-        {/* Icon */}
+      <div className={cn('group/title mx-auto max-w-5xl px-6 pb-6', coverHidden ? 'pt-10' : 'pt-4')}>
+        {/* Icon + "add cover" when there is none */}
         <div className="mb-2 flex items-center gap-2">
-          {editingIcon ? (
-            <div className="flex items-center gap-1">
-              <input
-                autoFocus
-                value={iconDraft}
-                onChange={(e) => setIconDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    setEditingIcon(false)
-                    onIconChange(iconDraft.slice(0, 4))
-                  } else if (e.key === 'Escape') {
-                    setEditingIcon(false)
-                    setIconDraft(page?.icon ?? '')
-                  }
-                }}
-                placeholder="Emoji"
-                className="w-20 rounded border border-border bg-background px-2 py-1 text-2xl focus:outline-none"
-              />
-              <button
-                onClick={() => {
-                  setEditingIcon(false)
-                  onIconChange(iconDraft.slice(0, 4))
-                }}
-                className="rounded p-1 text-xs hover:bg-accent"
-              >
-                OK
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setEditingIcon(true)}
-              className="rounded p-1 text-4xl leading-none hover:bg-accent"
-              title="Cambiar ícono"
-            >
+          <EmojiPicker onSelect={(e) => onIconChange(e)} onRemove={() => onIconChange('')}>
+            <button className="rounded-lg p-1 text-4xl leading-none hover:bg-accent" title="Cambiar ícono">
               {page?.icon || '📓'}
+            </button>
+          </EmojiPicker>
+          {coverHidden && (
+            <button
+              onClick={() => onCoverChange(null)}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover/title:opacity-100 [@media(hover:none)]:opacity-100"
+            >
+              <ImageIcon className="h-3.5 w-3.5" />
+              Añadir portada
             </button>
           )}
         </div>
