@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthUserId } from '@/lib/auth-helpers'
+import { accessiblePageWhere, getAuthUserId } from '@/lib/auth-helpers'
 
 /**
  * Verifies that the given attachmentId belongs (through its card -> column -> page) to the user.
@@ -10,27 +10,11 @@ async function verifyAttachmentOwnership(
   userId: string,
   attachmentId: string
 ): Promise<{ id: string; cardId: string } | null> {
-  const att = await db.attachment.findUnique({
-    where: { id: attachmentId },
-    select: {
-      id: true,
-      cardId: true,
-      card: {
-        select: {
-          id: true,
-          column: {
-            select: {
-              id: true,
-              page: { select: { userId: true } },
-            },
-          },
-        },
-      },
-    },
+  const att = await db.attachment.findFirst({
+    where: { id: attachmentId, card: { column: { page: accessiblePageWhere(userId) } } },
+    select: { id: true, cardId: true },
   })
-  if (!att) return null
-  if (att.card.column.page.userId !== userId) return null
-  return { id: att.id, cardId: att.cardId }
+  return att
 }
 
 export async function PATCH(

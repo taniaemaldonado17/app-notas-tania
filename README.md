@@ -132,6 +132,15 @@ La app usa PostgreSQL (Vercel no persiste archivos, así que SQLite no sirve ah�
 
 3. Deployá. El build (`vercel.json`) corre `prisma db push`, que crea las tablas automáticamente.
 
+## Compartir una página
+
+Desde el botón **Compartir** (arriba a la derecha) se crea un enlace de invitación. Cada enlace sirve para una sola persona y vence en 7 días. Quien lo abre puede crear su cuenta (aunque el registro esté cerrado) o entrar con la que ya tiene, y la página le aparece en **Compartidas conmigo**.
+
+- Las personas invitadas pueden ver y editar todo el contenido de la página y comentar.
+- Solo quien creó la página puede invitar, quitar el acceso y eliminarla.
+- Los favoritos son personales.
+- Los cambios de otras personas aparecen al volver a la pestaña o cada 30 segundos (no es en tiempo real).
+
 ## Estructura del proyecto
 
 ```

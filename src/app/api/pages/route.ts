@@ -1,15 +1,19 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthUserId } from '@/lib/auth-helpers'
+import { accessiblePageWhere, getAuthUserId } from '@/lib/auth-helpers'
+import { migrateLegacyFavorites } from '@/lib/favorites'
 
+/** Pages the user owns plus pages shared with them. */
 export async function GET() {
   const userId = await getAuthUserId()
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
+  await migrateLegacyFavorites(userId)
+
   const pages = await db.page.findMany({
-    where: { userId },
+    where: accessiblePageWhere(userId),
     orderBy: { createdAt: 'asc' },
     select: {
       id: true,
@@ -17,14 +21,24 @@ export async function GET() {
       subtitle: true,
       icon: true,
       coverUrl: true,
-      favorite: true,
       createdAt: true,
       updatedAt: true,
-      _count: { select: { columns: true } },
+      userId: true,
+      user: { select: { name: true, email: true } },
+      favoritedBy: { where: { userId }, select: { id: true } },
+      _count: { select: { members: true } },
     },
   })
 
-  return NextResponse.json({ pages })
+  return NextResponse.json({
+    pages: pages.map(({ userId: ownerId, user, favoritedBy, _count, ...p }) => ({
+      ...p,
+      favorite: favoritedBy.length > 0,
+      role: ownerId === userId ? 'owner' : 'member',
+      ownerName: user.name || user.email,
+      memberCount: _count.members,
+    })),
+  })
 }
 
 export async function POST(req: Request) {
@@ -54,10 +68,28 @@ export async function POST(req: Request) {
           ],
         },
       },
-      include: { columns: true },
+      select: {
+        id: true,
+        title: true,
+        subtitle: true,
+        icon: true,
+        coverUrl: true,
+        createdAt: true,
+        updatedAt: true,
+        user: { select: { name: true, email: true } },
+      },
     })
 
-    return NextResponse.json({ page })
+    const { user, ...rest } = page
+    return NextResponse.json({
+      page: {
+        ...rest,
+        favorite: false,
+        role: 'owner',
+        ownerName: user.name || user.email,
+        memberCount: 0,
+      },
+    })
   } catch (err) {
     console.error('[pages POST]', err)
     return NextResponse.json(

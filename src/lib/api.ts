@@ -5,9 +5,11 @@ import type {
   ChecklistItem,
   Column,
   FavoriteCard,
+  InviteInfo,
   Page,
   PageSummary,
   SearchResult,
+  ShareInfo,
 } from '@/lib/types'
 
 const API_BASE = '/api'
@@ -68,6 +70,59 @@ export async function deletePage(pageId: string): Promise<void> {
   await jsonFetch(`${API_BASE}/pages/${pageId}`, { method: 'DELETE' })
 }
 
+export async function setFavorite(
+  target: { pageId: string } | { cardId: string },
+  favorite: boolean
+): Promise<void> {
+  await jsonFetch(`${API_BASE}/favorites`, {
+    method: 'POST',
+    body: JSON.stringify({ ...target, favorite }),
+  })
+}
+
+/* ----------------------------- Sharing ----------------------------- */
+
+export async function fetchShare(pageId: string): Promise<ShareInfo> {
+  return jsonFetch<ShareInfo>(`${API_BASE}/pages/${pageId}/share`)
+}
+
+export async function createInvite(
+  pageId: string
+): Promise<ShareInfo['invites'][number]> {
+  const data = await jsonFetch<{ invite: ShareInfo['invites'][number] }>(
+    `${API_BASE}/pages/${pageId}/share`,
+    { method: 'POST' }
+  )
+  return data.invite
+}
+
+export async function revokeInvite(token: string): Promise<void> {
+  await jsonFetch(`${API_BASE}/invites/${encodeURIComponent(token)}`, {
+    method: 'DELETE',
+  })
+}
+
+/** Remove a member; pass 'me' to leave a page shared with you. */
+export async function removeMember(pageId: string, userId: string): Promise<void> {
+  await jsonFetch(`${API_BASE}/pages/${pageId}/members/${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function fetchInvite(token: string): Promise<InviteInfo> {
+  return jsonFetch<InviteInfo>(`${API_BASE}/invites/${encodeURIComponent(token)}`)
+}
+
+export async function acceptInvite(token: string): Promise<{ pageId: string }> {
+  return jsonFetch(`${API_BASE}/invites/${encodeURIComponent(token)}/accept`, {
+    method: 'POST',
+  })
+}
+
+export function inviteUrl(token: string): string {
+  return `${window.location.origin}/invite/${token}`
+}
+
 export async function fetchFavoriteCards(): Promise<FavoriteCard[]> {
   const data = await jsonFetch<{ cards: FavoriteCard[] }>(`${API_BASE}/favorites`)
   return data.cards
@@ -87,7 +142,6 @@ export async function updatePage(
     subtitle: string | null
     icon: string | null
     coverUrl: string | null
-    favorite: boolean
   }>
 ): Promise<Page> {
   const data = await jsonFetch<{ page: Page }>(
@@ -169,7 +223,6 @@ export async function updateCard(
     coverUrl: string | null
     accentColor: string | null
     icon: string | null
-    favorite: boolean
     position: number
     columnId: string
   }>
@@ -337,6 +390,7 @@ export async function registerUser(payload: {
   email: string
   password: string
   name?: string
+  inviteToken?: string
 }): Promise<{ ok: boolean; userId: string }> {
   return jsonFetch(`${API_BASE}/auth/register`, {
     method: 'POST',

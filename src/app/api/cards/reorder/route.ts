@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthUserId } from '@/lib/auth-helpers'
+import { canAccessPages, getAuthUserId } from '@/lib/auth-helpers'
 
 type CardMove = {
   id: string
@@ -33,26 +33,21 @@ export async function POST(req: Request) {
 
     const cards = await db.card.findMany({
       where: { id: { in: cardIds } },
-      select: {
-        id: true,
-        column: { select: { page: { select: { userId: true } } } },
-      },
+      select: { id: true, column: { select: { pageId: true } } },
     })
     const columns = await db.column.findMany({
       where: { id: { in: columnIds } },
-      select: { id: true, page: { select: { userId: true } } },
+      select: { id: true, pageId: true },
     })
-
-    const cardOwners = new Map(cards.map((c) => [c.id, c.column.page.userId]))
-    const columnOwners = new Map(columns.map((c) => [c.id, c.page.userId]))
-
-    for (const move of moves) {
-      if (cardOwners.get(move.id) !== userId) {
-        return NextResponse.json({ error: 'Tarjeta no autorizada' }, { status: 403 })
-      }
-      if (columnOwners.get(move.columnId) !== userId) {
-        return NextResponse.json({ error: 'Columna destino no autorizada' }, { status: 403 })
-      }
+    if (cards.length !== cardIds.length || columns.length !== columnIds.length) {
+      return NextResponse.json({ error: 'Tarjeta o columna no válida' }, { status: 400 })
+    }
+    const pageIds = [
+      ...cards.map((c) => c.column.pageId),
+      ...columns.map((c) => c.pageId),
+    ]
+    if (!(await canAccessPages(userId, pageIds))) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
     await db.$transaction(

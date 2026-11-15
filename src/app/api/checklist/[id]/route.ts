@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthUserId, verifyCardOwnership } from '@/lib/auth-helpers'
+import { accessiblePageWhere, getAuthUserId } from '@/lib/auth-helpers'
 
 /**
  * Verifies that the given checklistItemId belongs (through its card -> column -> page) to the user.
@@ -10,27 +10,11 @@ async function verifyChecklistOwnership(
   userId: string,
   itemId: string
 ): Promise<{ id: string; cardId: string } | null> {
-  const item = await db.checklistItem.findUnique({
-    where: { id: itemId },
-    select: {
-      id: true,
-      cardId: true,
-      card: {
-        select: {
-          id: true,
-          column: {
-            select: {
-              id: true,
-              page: { select: { userId: true } },
-            },
-          },
-        },
-      },
-    },
+  const item = await db.checklistItem.findFirst({
+    where: { id: itemId, card: { column: { page: accessiblePageWhere(userId) } } },
+    select: { id: true, cardId: true },
   })
-  if (!item) return null
-  if (item.card.column.page.userId !== userId) return null
-  return { id: item.id, cardId: item.cardId }
+  return item
 }
 
 export async function PATCH(

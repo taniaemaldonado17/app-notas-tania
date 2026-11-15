@@ -7,7 +7,9 @@ import {
   ChevronDown,
   ChevronRight,
   FileText,
+  LogOut,
   MoreHorizontal,
+  Users,
   Pencil,
   Plus,
   Search,
@@ -36,6 +38,7 @@ type Props = {
   onRenamePage: (pageId: string, title: string) => void
   onToggleFavoritePage: (pageId: string) => void
   onDeletePage: (pageId: string) => void
+  onLeavePage: (pageId: string) => void
 }
 
 /** Notion-style left navigation: search, favourites and the page list. */
@@ -48,6 +51,7 @@ export function AppSidebar({
   onRenamePage,
   onToggleFavoritePage,
   onDeletePage,
+  onLeavePage,
 }: Props) {
   const { data: session } = useSession()
   const sidebarOpen = useWorkspace((s) => s.sidebarOpen)
@@ -58,6 +62,7 @@ export function AppSidebar({
   const [favoriteCards, setFavoriteCards] = useState<FavoriteCard[]>([])
   const [favOpen, setFavOpen] = useState(true)
   const [pagesOpen, setPagesOpen] = useState(true)
+  const [sharedOpen, setSharedOpen] = useState(true)
 
   useEffect(() => {
     let cancelled = false
@@ -73,6 +78,8 @@ export function AppSidebar({
 
   const name = session?.user?.name || session?.user?.email || 'Mi espacio'
   const favoritePages = pages.filter((p) => p.favorite)
+  const ownPages = pages.filter((p) => p.role === 'owner')
+  const sharedPages = pages.filter((p) => p.role === 'member')
   const hasFavorites = favoritePages.length > 0 || favoriteCards.length > 0
 
   // On phones the sidebar overlays the page; close it after navigating.
@@ -177,7 +184,8 @@ export function AppSidebar({
             </ul>
           )}
 
-          {/* Pages */}
+          {/* Own pages (hidden for collaborators who have none yet) */}
+          {(ownPages.length > 0 || sharedPages.length === 0) && (
           <SectionHeader
             label="Páginas"
             open={pagesOpen}
@@ -194,9 +202,10 @@ export function AppSidebar({
               </button>
             }
           />
-          {pagesOpen && (
+          )}
+          {pagesOpen && ownPages.length > 0 && (
             <ul className="space-y-px">
-              {pages.map((p) => (
+              {ownPages.map((p) => (
                 <li key={p.id}>
                   <PageRow
                     page={p}
@@ -209,6 +218,35 @@ export function AppSidebar({
                     onRename={(title) => onRenamePage(p.id, title)}
                     onToggleFavorite={() => onToggleFavoritePage(p.id)}
                     onDelete={() => onDeletePage(p.id)}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Pages other people shared with this user */}
+          {sharedPages.length > 0 && (
+            <SectionHeader
+              label="Compartidas conmigo"
+              open={sharedOpen}
+              onToggle={() => setSharedOpen((v) => !v)}
+            />
+          )}
+          {sharedPages.length > 0 && sharedOpen && (
+            <ul className="space-y-px">
+              {sharedPages.map((p) => (
+                <li key={p.id}>
+                  <PageRow
+                    page={p}
+                    active={p.id === currentPageId}
+                    canDelete={false}
+                    onSelect={() => {
+                      onSelectPage(p.id)
+                      afterNavigate()
+                    }}
+                    onRename={(title) => onRenamePage(p.id, title)}
+                    onToggleFavorite={() => onToggleFavoritePage(p.id)}
+                    onDelete={() => onLeavePage(p.id)}
                   />
                 </li>
               ))}
@@ -377,6 +415,12 @@ function PageRow({
       >
         <RowIcon icon={page.icon} />
         <span className="min-w-0 flex-1 truncate">{page.title || 'Sin título'}</span>
+        {page.role === 'owner' && page.memberCount > 0 && (
+          <Users
+            className="h-3 w-3 shrink-0 text-muted-foreground group-hover/row:hidden"
+            aria-label="Compartida"
+          />
+        )}
       </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -413,14 +457,24 @@ function PageRow({
             Cambiar nombre
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={onDelete}
-            disabled={!canDelete}
-            className="cursor-pointer text-sm text-destructive focus:text-destructive"
-          >
-            <Trash2 className="mr-2 h-3.5 w-3.5" />
-            Eliminar página
-          </DropdownMenuItem>
+          {page.role === 'member' ? (
+            <DropdownMenuItem
+              onClick={onDelete}
+              className="cursor-pointer text-sm text-destructive focus:text-destructive"
+            >
+              <LogOut className="mr-2 h-3.5 w-3.5" />
+              Salir de la página
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              onClick={onDelete}
+              disabled={!canDelete}
+              className="cursor-pointer text-sm text-destructive focus:text-destructive"
+            >
+              <Trash2 className="mr-2 h-3.5 w-3.5" />
+              Eliminar página
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

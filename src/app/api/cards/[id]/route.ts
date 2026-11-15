@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthUserId, verifyCardOwnership } from '@/lib/auth-helpers'
+import { getAuthUserId, verifyCardOwnership, verifyColumnOwnership } from '@/lib/auth-helpers'
 import { cardInclude } from '@/lib/card-include'
 
 export async function PATCH(
@@ -26,7 +26,6 @@ export async function PATCH(
       coverUrl?: string | null
       accentColor?: string | null
       icon?: string | null
-      favorite?: boolean
       position?: number
       columnId?: string
     } = {}
@@ -39,18 +38,11 @@ export async function PATCH(
     if (typeof body.accentColor === 'string')
       data.accentColor = body.accentColor || null
     if (typeof body.icon === 'string') data.icon = body.icon || null
-    if (typeof body.favorite === 'boolean') data.favorite = body.favorite
     if (typeof body.position === 'number') data.position = body.position
     if (typeof body.columnId === 'string' && body.columnId !== card.columnId) {
       // Validate destination column ownership before move
-      const dest = await db.column.findUnique({
-        where: { id: body.columnId },
-        select: {
-          id: true,
-          page: { select: { userId: true } },
-        },
-      })
-      if (!dest || dest.page.userId !== userId) {
+      const dest = await verifyColumnOwnership(userId, body.columnId)
+      if (!dest) {
         return NextResponse.json(
           { error: 'Columna destino no válida' },
           { status: 400 }

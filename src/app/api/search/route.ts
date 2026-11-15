@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthUserId } from '@/lib/auth-helpers'
+import { accessiblePageWhere, getAuthUserId } from '@/lib/auth-helpers'
 
 export async function GET(req: Request) {
   const userId = await getAuthUserId()
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   // Find all cards belonging to the user, search by title / description / checklist text
   const cards = await db.card.findMany({
     where: {
-      column: { page: { userId } },
+      column: { page: accessiblePageWhere(userId) },
       OR: [
         { title: { contains: q, mode: 'insensitive' } },
         { description: { contains: q, mode: 'insensitive' } },

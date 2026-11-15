@@ -71,9 +71,30 @@ export type PageSummary = {
   icon: string | null
   coverUrl: string | null
   favorite: boolean
+  /** 'owner' created the page; 'member' was invited to it. */
+  role: 'owner' | 'member'
+  ownerName: string
+  memberCount: number
   createdAt: string
   updatedAt: string
 }
+
+export type SharePerson = {
+  id: string
+  name: string | null
+  email: string
+}
+
+export type ShareInfo = {
+  isOwner: boolean
+  owner: SharePerson
+  members: (SharePerson & { joinedAt: string })[]
+  invites: { token: string; createdAt: string; expiresAt: string }[]
+}
+
+export type InviteInfo =
+  | { valid: true; pageTitle: string; pageIcon: string | null; invitedBy: string }
+  | { valid: false; reason: 'not_found' | 'used' | 'expired' }
 
 export type FavoriteCard = {
   id: string

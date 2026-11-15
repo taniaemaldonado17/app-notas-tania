@@ -2,18 +2,23 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { hashPassword } from '@/lib/bcrypt'
 import { ensureTemplatePage } from '@/lib/template'
+import { findUsableInvite } from '@/lib/invites'
 
 export async function POST(req: Request) {
-  // Registration is closed unless NEXT_PUBLIC_ALLOW_REGISTRATION=true.
-  if (process.env.NEXT_PUBLIC_ALLOW_REGISTRATION !== 'true') {
-    return NextResponse.json(
-      { error: 'El registro de nuevas cuentas está deshabilitado' },
-      { status: 403 }
-    )
-  }
-
   try {
     const body = await req.json()
+
+    // Registration is closed unless NEXT_PUBLIC_ALLOW_REGISTRATION=true,
+    // except for people holding a valid invitation link.
+    const inviteToken = (body?.inviteToken ?? '').toString()
+    const invited = inviteToken ? !!(await findUsableInvite(inviteToken)) : false
+    if (process.env.NEXT_PUBLIC_ALLOW_REGISTRATION !== 'true' && !invited) {
+      return NextResponse.json(
+        { error: 'El registro de nuevas cuentas está deshabilitado' },
+        { status: 403 }
+      )
+    }
+
     const email = (body?.email ?? '').toString().trim().toLowerCase()
     const password = (body?.password ?? '').toString()
     const name = (body?.name ?? '').toString().trim()
@@ -48,8 +53,9 @@ export async function POST(req: Request) {
       },
     })
 
-    // Auto-seed the default Notion template page for new users
-    await ensureTemplatePage(user.id)
+    // Auto-seed the default template page for new users, except invited
+    // collaborators: they arrive to work on the shared page.
+    if (!invited) await ensureTemplatePage(user.id)
 
     return NextResponse.json({ ok: true, userId: user.id })
   } catch (err) {

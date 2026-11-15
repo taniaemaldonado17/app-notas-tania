@@ -248,7 +248,7 @@ export function useWorkspacePage(pageId: string | null) {
   const updateCard = useCallback(
     async (
       cardId: string,
-      payload: Partial<Pick<Card, 'title' | 'description' | 'coverUrl' | 'accentColor' | 'icon' | 'favorite'>>
+      payload: Partial<Pick<Card, 'title' | 'description' | 'coverUrl' | 'accentColor' | 'icon'>>
     ) => {
       const current = pageRef.current
       if (!current) return
@@ -658,9 +658,42 @@ export function useWorkspacePage(pageId: string | null) {
     [patchCard]
   )
 
+  /** Personal star on a card (stored per user, not on the card). */
+  const setCardFavorite = useCallback(
+    async (cardId: string, favorite: boolean) => {
+      patchCard(cardId, (k) => ({ ...k, favorite }))
+      try {
+        await api.setFavorite({ cardId }, favorite)
+      } catch (err) {
+        patchCard(cardId, (k) => ({ ...k, favorite: !favorite }))
+        throw err
+      }
+    },
+    [patchCard]
+  )
+
+  /**
+   * Reload the page in the background (no spinner) to pick up changes made
+   * by collaborators.
+   */
+  const refresh = useCallback(async () => {
+    if (!pageId) return
+    try {
+      const page = await api.fetchPage(pageId)
+      // Ignore the result if the user switched page meanwhile.
+      if (pageRef.current && pageRef.current.id !== page.id) return
+      pageRef.current = page
+      setState({ page, loading: false, error: null })
+    } catch {
+      // Network hiccup or access removed: keep what is on screen.
+    }
+  }, [pageId])
+
   return {
     addComment,
     deleteComment,
+    setCardFavorite,
+    refresh,
     page: state.page,
     loading: state.loading,
     error: state.error,

@@ -22,6 +22,10 @@ model User {
   accounts      Account[]
   comments      Comment[]
   uploads       Upload[]
+  memberships   PageMember[]
+  invitesSent   PageInvite[]  @relation("InviteCreator")
+  invitesUsed   PageInvite[]  @relation("InviteUser")
+  favorites     Favorite[]
 }
 
 model Page {
@@ -30,7 +34,12 @@ model Page {
   subtitle    String?
   icon        String?
   coverUrl    String?
+  // Deprecated: favourites are per user now (see Favorite). Kept so existing
+  // data can be migrated; not read or written by the app.
   favorite    Boolean  @default(false)
+  members     PageMember[]
+  invites     PageInvite[]
+  favoritedBy Favorite[]
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   columns     Column[]
@@ -61,7 +70,9 @@ model Card {
   coverUrl    String?
   accentColor String?
   icon        String?
+  // Deprecated: see Favorite.
   favorite    Boolean  @default(false)
+  favoritedBy Favorite[]
   position    Int
   columnId    String
   column      Column   @relation(fields: [columnId], references: [id], onDelete: Cascade)
@@ -162,4 +173,50 @@ model Upload {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// A user (other than the owner) who can view and edit a shared page.
+model PageMember {
+  id        String   @id @default(cuid())
+  pageId    String
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([pageId, userId])
+  @@index([userId])
+}
+
+// Single-use invitation link to a page. Also allows creating an account
+// while public registration is closed.
+model PageInvite {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  pageId      String
+  page        Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  createdById String
+  createdBy   User      @relation("InviteCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  usedById    String?
+  usedBy      User?     @relation("InviteUser", fields: [usedById], references: [id], onDelete: SetNull)
+  usedAt      DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+
+  @@index([pageId])
+}
+
+// Personal favourites: a page or a card starred by one user.
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pageId    String?
+  page      Page?    @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  cardId    String?
+  card      Card?    @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, pageId])
+  @@unique([userId, cardId])
 }

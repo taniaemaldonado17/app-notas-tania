@@ -15,10 +15,12 @@ export async function DELETE(
   const comment = await db.comment.findUnique({
     where: { id },
     select: {
+      userId: true,
       card: { select: { column: { select: { page: { select: { userId: true } } } } } },
     },
   })
-  if (!comment || comment.card.column.page.userId !== userId) {
+  // Only the author or the page owner can delete a comment.
+  if (!comment || (comment.userId !== userId && comment.card.column.page.userId !== userId)) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
 

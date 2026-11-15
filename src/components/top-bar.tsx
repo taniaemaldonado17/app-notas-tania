@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { NotebookPen, Loader2, Image as ImageIcon, Edit3, Menu } from 'lucide-react'
+import { NotebookPen, Loader2, Image as ImageIcon, Edit3, Menu, Share2, Users } from 'lucide-react'
 import { useWorkspace } from '@/lib/workspace-store'
 import { SearchBox } from '@/components/search-box'
 import { UserMenu } from '@/components/user-menu'
@@ -10,9 +10,12 @@ import type { Page } from '@/lib/types'
 
 type Props = {
   page: Page | null
+  /** Number of people the page is shared with (0 = private). */
+  memberCount?: number
+  onShare?: () => void
 }
 
-export function TopBar({ page }: Props) {
+export function TopBar({ page, memberCount = 0, onShare }: Props) {
   const sidebarOpen = useWorkspace((s) => s.sidebarOpen)
   const setSidebarOpen = useWorkspace((s) => s.setSidebarOpen)
 
@@ -44,6 +47,21 @@ export function TopBar({ page }: Props) {
       <div className="mx-auto flex-1 flex justify-center px-2">
         <SearchBox />
       </div>
+
+      {page && onShare && (
+        <button
+          type="button"
+          onClick={onShare}
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+          title="Compartir esta página"
+        >
+          {memberCount > 0 ? <Users className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+          <span className="hidden sm:inline">Compartir</span>
+          {memberCount > 0 && (
+            <span className="rounded bg-muted px-1 text-[11px] tabular-nums">{memberCount + 1}</span>
+          )}
+        </button>
+      )}
 
       <UserMenu />
     </header>

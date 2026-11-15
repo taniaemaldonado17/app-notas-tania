@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUserId } from '@/lib/auth-helpers'
 
-/** Serves an uploaded file to its owner. */
+/**
+ * Serves an uploaded file to any signed-in user. File ids are random and
+ * only appear inside pages, so collaborators on a shared page can see each
+ * other's images.
+ */
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -14,7 +18,7 @@ export async function GET(
   const { id } = await params
 
   const upload = await db.upload.findUnique({ where: { id } })
-  if (!upload || upload.userId !== userId) {
+  if (!upload) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
 

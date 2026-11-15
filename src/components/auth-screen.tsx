@@ -13,8 +13,18 @@ type Mode = 'login' | 'register'
 // Registration is closed unless NEXT_PUBLIC_ALLOW_REGISTRATION=true.
 const ALLOW_REGISTRATION = process.env.NEXT_PUBLIC_ALLOW_REGISTRATION === 'true'
 
-export function AuthScreen() {
-  const [mode, setMode] = useState<Mode>('login')
+type Props = {
+  /** Invitation token: enables sign-up even while registration is closed. */
+  inviteToken?: string
+  /** Shown above the form (e.g. what the invitation is for). */
+  notice?: React.ReactNode
+  /** Runs after a successful sign-in instead of reloading the page. */
+  onSignedIn?: () => Promise<void> | void
+}
+
+export function AuthScreen({ inviteToken, notice, onSignedIn }: Props = {}) {
+  const canRegister = ALLOW_REGISTRATION || !!inviteToken
+  const [mode, setMode] = useState<Mode>(inviteToken ? 'register' : 'login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -28,7 +38,7 @@ export function AuthScreen() {
         const res = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, name }),
+          body: JSON.stringify({ email, password, name, inviteToken }),
         })
         const data = await res.json()
         if (!res.ok) {
@@ -64,6 +74,10 @@ export function AuthScreen() {
 
       // Small delay to let the session cookie settle
       await new Promise((r) => setTimeout(r, 500))
+      if (onSignedIn) {
+        await onSignedIn()
+        return
+      }
       // Force a full reload so the page picks up the new session.
       window.location.reload()
     } catch (err) {
@@ -94,7 +108,9 @@ export function AuthScreen() {
             </div>
           </div>
 
-          {ALLOW_REGISTRATION && (
+          {notice}
+
+          {canRegister && (
           <div className="mb-5 flex rounded-md border border-border bg-muted/50 p-1">
             <button
               type="button"

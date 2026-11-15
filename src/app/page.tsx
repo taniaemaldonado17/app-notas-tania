@@ -10,6 +10,7 @@ import { Board } from '@/components/board'
 import { CardDetailPanel } from '@/components/card-detail-panel'
 import { AppSidebar } from '@/components/app-sidebar'
 import { SearchDialog } from '@/components/search-dialog'
+import { ShareDialog } from '@/components/share-dialog'
 import * as api from '@/lib/api'
 import type { Page, PageSummary } from '@/lib/types'
 import { useWorkspace } from '@/lib/workspace-store'
@@ -53,7 +54,9 @@ export default function Home() {
 }
 
 function AppShell() {
+  const { data: session } = useSession()
   const [pages, setPages] = useState<PageSummary[] | null>(null)
+  const [shareOpen, setShareOpen] = useState(false)
   const [pageId, setPageId] = useState<string | null>(null)
   const workspace = useWorkspacePage(pageId)
   const { openCard, closeCard, setSearchQuery } = useWorkspace()
@@ -93,7 +96,7 @@ function AppShell() {
         let list = await api.fetchPages()
         if (list.length === 0) {
           const created = await api.createPage({ title: 'Registro de tareas diarias', icon: '📓' })
-          list = [{ ...created, favorite: false }]
+          list = [created]
         }
         if (cancelled) return
         setPages(list)
@@ -112,6 +115,35 @@ function AppShell() {
   useEffect(() => {
     if (pageId) writeStorage(LAST_PAGE_KEY, pageId)
   }, [pageId])
+
+  const reloadPages = useCallback(async () => {
+    try {
+      setPages(await api.fetchPages())
+    } catch {
+      // keep the current list
+    }
+  }, [])
+
+  // Pick up changes made by collaborators: when coming back to the tab,
+  // and every 30 s while the tab is visible.
+  const { refresh } = workspace
+  useEffect(() => {
+    function onFocus() {
+      if (document.visibilityState !== 'visible') return
+      refresh()
+      reloadPages()
+    }
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refresh()
+    }, 30_000)
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
+    }
+  }, [refresh, reloadPages])
 
   const selectPage = useCallback(
     (id: string) => {
@@ -144,7 +176,7 @@ function AppShell() {
   async function handleCreatePage() {
     try {
       const created = await api.createPage({ title: 'Sin título', icon: '📄' })
-      setPages((ps) => [...(ps ?? []), { ...created, favorite: false }])
+      setPages((ps) => [...(ps ?? []), created])
       selectPage(created.id)
       toast.success('Página creada')
     } catch {
@@ -170,7 +202,7 @@ function AppShell() {
     const favorite = !target.favorite
     setPages((ps) => ps?.map((p) => (p.id === id ? { ...p, favorite } : p)) ?? ps)
     try {
-      await api.updatePage(id, { favorite })
+      await api.setFavorite({ pageId: id }, favorite)
     } catch {
       setPages((ps) => ps?.map((p) => (p.id === id ? { ...p, favorite: !favorite } : p)) ?? ps)
       toast.error('No se pudo actualizar favoritos')
@@ -196,6 +228,35 @@ function AppShell() {
     }
   }
 
+  // After leaving or losing access to a page, show another one.
+  function dropPage(id: string) {
+    const remaining = (pages ?? []).filter((p) => p.id !== id)
+    setPages(remaining)
+    useWorkspace.getState().bumpFavorites()
+    if (id === pageId) {
+      if (remaining.length > 0) selectPage(remaining[0].id)
+      else window.location.reload()
+    }
+  }
+
+  async function handleLeavePage(id: string) {
+    const target = pages?.find((p) => p.id === id)
+    if (!target) return
+    const ok = window.confirm(
+      `¿Salir de "${target.title}"?\n\nDejás de verla. Para volver, te tienen que invitar de nuevo.`
+    )
+    if (!ok) return
+    try {
+      await api.removeMember(id, 'me')
+      dropPage(id)
+      toast.success('Saliste de la página')
+    } catch {
+      toast.error('No se pudo salir de la página')
+    }
+  }
+
+  const currentSummary = pages?.find((p) => p.id === pageId)
+
   return (
     <div className="flex min-h-dvh bg-background">
       <AppSidebar
@@ -207,16 +268,30 @@ function AppShell() {
         onRenamePage={handleRenamePage}
         onToggleFavoritePage={handleToggleFavoritePage}
         onDeletePage={handleDeletePage}
+        onLeavePage={handleLeavePage}
       />
       <SearchDialog
         pages={pages ?? []}
         onSelectPage={selectPage}
         onOpenCard={openCardOnPage}
       />
+      {pageId && currentSummary && (
+        <ShareDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          pageId={pageId}
+          pageTitle={currentSummary.title}
+          currentUserId={session?.user?.id}
+          onChanged={reloadPages}
+          onLeft={() => dropPage(pageId)}
+        />
+      )}
       <Workspace
         workspace={workspace}
         loadingPage={!pageId || workspace.loading}
         onUpdatePageMeta={updatePageMeta}
+        memberCount={currentSummary?.memberCount ?? 0}
+        onShare={() => setShareOpen(true)}
       />
     </div>
   )
@@ -226,21 +301,30 @@ function Workspace({
   workspace,
   loadingPage,
   onUpdatePageMeta,
+  memberCount,
+  onShare,
 }: {
   workspace: ReturnType<typeof useWorkspacePage>
   loadingPage: boolean
   onUpdatePageMeta: (
     payload: Partial<Pick<Page, 'title' | 'subtitle' | 'icon' | 'coverUrl'>>
   ) => Promise<void>
+  memberCount: number
+  onShare: () => void
 }) {
   const page = workspace.page
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <TopBar page={page ?? null} />
+      <TopBar page={page ?? null} memberCount={memberCount} onShare={onShare} />
 
       <main className="flex flex-1 flex-col">
-        {loadingPage || !page ? (
+        {workspace.error ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 py-20 text-center text-sm text-muted-foreground">
+            <p>No se pudo abrir esta página. Puede que ya no tengas acceso.</p>
+            <p>Elegí otra en el menú de la izquierda.</p>
+          </div>
+        ) : loadingPage || !page ? (
           <div className="flex flex-1 items-center justify-center py-20">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>

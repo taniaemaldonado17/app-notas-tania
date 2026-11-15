@@ -118,9 +118,13 @@ export function CardItem({ card, dimmed, workspace, onOpen }: Props) {
 
   async function handleToggleFavorite() {
     const next = !isFavorite
-    await workspace.updateCard(card.id, { favorite: next })
-    bumpFavorites()
-    toast.success(next ? 'Añadida a favoritos' : 'Quitada de favoritos')
+    try {
+      await workspace.setCardFavorite(card.id, next)
+      bumpFavorites()
+      toast.success(next ? 'Añadida a favoritos' : 'Quitada de favoritos')
+    } catch {
+      toast.error('No se pudo actualizar favoritos')
+    }
   }
 
   function handleChangeIcon(icon: string) {

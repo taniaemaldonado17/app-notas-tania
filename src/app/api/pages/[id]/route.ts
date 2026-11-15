@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAuthUserId, verifyPageOwnership } from '@/lib/auth-helpers'
+import { getAuthUserId, isPageOwner, verifyPageOwnership } from '@/lib/auth-helpers'
 import { cardInclude } from '@/lib/card-include'
 
 export async function GET(
@@ -26,7 +26,11 @@ export async function GET(
         include: {
           cards: {
             orderBy: { position: 'asc' },
-            include: cardInclude,
+            include: {
+              ...cardInclude,
+              // Only this user's star, so favourites stay personal.
+              favoritedBy: { where: { userId }, select: { id: true } },
+            },
           },
         },
       },
@@ -37,7 +41,19 @@ export async function GET(
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
 
-  return NextResponse.json({ page })
+  const { columns, ...rest } = page
+  return NextResponse.json({
+    page: {
+      ...rest,
+      columns: columns.map((col) => ({
+        ...col,
+        cards: col.cards.map(({ favoritedBy, ...card }) => ({
+          ...card,
+          favorite: favoritedBy.length > 0,
+        })),
+      })),
+    },
+  })
 }
 
 export async function PATCH(
@@ -62,7 +78,6 @@ export async function PATCH(
       subtitle?: string | null
       icon?: string | null
       coverUrl?: string | null
-      favorite?: boolean
     } = {}
     if (typeof body.title === 'string') data.title = body.title.trim()
     if (typeof body.subtitle === 'string')
@@ -70,7 +85,6 @@ export async function PATCH(
     if (typeof body.icon === 'string') data.icon = body.icon.trim() || null
     if (typeof body.coverUrl === 'string')
       data.coverUrl = body.coverUrl.trim() || null
-    if (typeof body.favorite === 'boolean') data.favorite = body.favorite
 
     const page = await db.page.update({ where: { id }, data })
     return NextResponse.json({ page })
@@ -93,9 +107,11 @@ export async function DELETE(
   }
   const { id } = await params
 
-  const owns = await verifyPageOwnership(userId, id)
-  if (!owns) {
-    return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+  if (!(await isPageOwner(userId, id))) {
+    return NextResponse.json(
+      { error: 'Solo quien creó la página puede eliminarla' },
+      { status: 403 }
+    )
   }
 
   await db.page.delete({ where: { id } })
