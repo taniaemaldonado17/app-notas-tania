@@ -29,6 +29,7 @@ export type Card = {
   coverUrl: string | null
   accentColor: string | null
   icon: string | null
+  favorite?: boolean
   position: number
   columnId: string
   checklist: ChecklistItem[]
@@ -55,10 +56,30 @@ export type Page = {
   subtitle: string | null
   icon: string | null
   coverUrl: string | null
+  favorite?: boolean
   userId: string
   columns: Column[]
   createdAt: string
   updatedAt: string
+}
+
+/** Page as listed in the sidebar (no columns). */
+export type PageSummary = {
+  id: string
+  title: string
+  subtitle: string | null
+  icon: string | null
+  coverUrl: string | null
+  favorite: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export type FavoriteCard = {
+  id: string
+  title: string
+  icon: string | null
+  pageId: string
 }
 
 export type SearchResult = {

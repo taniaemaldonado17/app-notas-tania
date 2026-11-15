@@ -4,7 +4,10 @@ import type {
   CardComment,
   ChecklistItem,
   Column,
+  FavoriteCard,
   Page,
+  PageSummary,
+  SearchResult,
 } from '@/lib/types'
 
 const API_BASE = '/api'
@@ -45,19 +48,36 @@ export async function fetchPage(pageId: string): Promise<Page> {
   return data.page
 }
 
-export async function fetchPages(): Promise<
-  {
-    id: string
-    title: string
-    subtitle: string | null
-    icon: string | null
-    coverUrl: string | null
-    createdAt: string
-    updatedAt: string
-  }[]
-> {
-  const data = await jsonFetch<{ pages: any[] }>(`${API_BASE}/pages`)
+export async function fetchPages(): Promise<PageSummary[]> {
+  const data = await jsonFetch<{ pages: PageSummary[] }>(`${API_BASE}/pages`)
   return data.pages
+}
+
+export async function createPage(payload: {
+  title: string
+  icon?: string | null
+}): Promise<PageSummary> {
+  const data = await jsonFetch<{ page: PageSummary }>(`${API_BASE}/pages`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return data.page
+}
+
+export async function deletePage(pageId: string): Promise<void> {
+  await jsonFetch(`${API_BASE}/pages/${pageId}`, { method: 'DELETE' })
+}
+
+export async function fetchFavoriteCards(): Promise<FavoriteCard[]> {
+  const data = await jsonFetch<{ cards: FavoriteCard[] }>(`${API_BASE}/favorites`)
+  return data.cards
+}
+
+export async function searchCards(q: string): Promise<SearchResult[]> {
+  const data = await jsonFetch<{ results: SearchResult[] }>(
+    `${API_BASE}/search?q=${encodeURIComponent(q)}`
+  )
+  return data.results
 }
 
 export async function updatePage(
@@ -67,6 +87,7 @@ export async function updatePage(
     subtitle: string | null
     icon: string | null
     coverUrl: string | null
+    favorite: boolean
   }>
 ): Promise<Page> {
   const data = await jsonFetch<{ page: Page }>(
@@ -148,6 +169,7 @@ export async function updateCard(
     coverUrl: string | null
     accentColor: string | null
     icon: string | null
+    favorite: boolean
     position: number
     columnId: string
   }>

@@ -18,11 +18,11 @@ export function SearchBox() {
         onChange={(e) => setSearchQuery(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        placeholder="Buscar tarjetas…"
+        placeholder="Filtrar tarjetas de esta página…"
         className={`h-9 rounded-md border-border bg-card pl-8 pr-8 text-sm transition ${
           focused ? 'ring-1 ring-ring' : ''
         }`}
-        aria-label="Buscar tarjetas"
+        aria-label="Filtrar tarjetas de esta página"
       />
       {searchQuery && (
         <button

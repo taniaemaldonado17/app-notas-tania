@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { useWorkspace } from '@/lib/workspace-store'
 import { toast } from 'sonner'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -77,7 +78,8 @@ type Props = {
 export function CardItem({ card, dimmed, workspace, onOpen }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id })
-  const [isFavorite, setIsFavorite] = useState(false)
+  const bumpFavorites = useWorkspace((s) => s.bumpFavorites)
+  const isFavorite = !!card.favorite
 
   const style: React.CSSProperties = {
     transform: CSS.Translate.toString(transform),
@@ -114,12 +116,11 @@ export function CardItem({ card, dimmed, workspace, onOpen }: Props) {
     }
   }
 
-  function handleToggleFavorite() {
-    setIsFavorite((v) => {
-      const next = !v
-      toast.success(next ? 'Añadida a favoritos' : 'Quitada de favoritos')
-      return next
-    })
+  async function handleToggleFavorite() {
+    const next = !isFavorite
+    await workspace.updateCard(card.id, { favorite: next })
+    bumpFavorites()
+    toast.success(next ? 'Añadida a favoritos' : 'Quitada de favoritos')
   }
 
   function handleChangeIcon(icon: string) {

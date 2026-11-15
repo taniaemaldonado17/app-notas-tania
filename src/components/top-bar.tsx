@@ -2,7 +2,8 @@
 
 import { useRef, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { NotebookPen, Loader2, Image as ImageIcon, Edit3 } from 'lucide-react'
+import { NotebookPen, Loader2, Image as ImageIcon, Edit3, Menu } from 'lucide-react'
+import { useWorkspace } from '@/lib/workspace-store'
 import { SearchBox } from '@/components/search-box'
 import { UserMenu } from '@/components/user-menu'
 import type { Page } from '@/lib/types'
@@ -12,15 +13,30 @@ type Props = {
 }
 
 export function TopBar({ page }: Props) {
+  const sidebarOpen = useWorkspace((s) => s.sidebarOpen)
+  const setSidebarOpen = useWorkspace((s) => s.setSidebarOpen)
+
   return (
-    <header className="sticky top-0 z-30 flex h-12 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur">
-      <div className="flex min-w-0 items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-          <NotebookPen className="h-4 w-4" />
-        </div>
-        <div className="hidden min-w-0 items-center gap-1 text-sm text-muted-foreground sm:flex">
+    <header className="sticky top-0 z-30 flex h-12 items-center gap-3 border-b border-border bg-background/85 px-3 backdrop-blur">
+      <div className="flex min-w-0 items-center gap-1.5">
+        {/* Always visible on phones; on desktop only when the sidebar is hidden */}
+        <button
+          type="button"
+          onClick={() => setSidebarOpen(true)}
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground ${
+            sidebarOpen ? 'md:hidden' : ''
+          }`}
+          aria-label="Abrir barra lateral"
+          title="Abrir barra lateral (Ctrl+\)"
+        >
+          <Menu className="h-4 w-4" />
+        </button>
+        <div className="hidden min-w-0 items-center gap-1.5 text-sm sm:flex">
+          <span className="shrink-0 text-base leading-none">
+            {page?.icon || <NotebookPen className="h-4 w-4 text-muted-foreground" />}
+          </span>
           <span className="truncate font-medium text-foreground">
-            {page?.title ?? 'Registro de tareas diarias'}
+            {page?.title ?? ''}
           </span>
         </div>
       </div>

@@ -17,6 +17,18 @@ type WorkspaceUIState = {
   /** Whether the column context menu is open (only one at a time). */
   openColumnMenuId: string | null
   setOpenColumnMenu: (id: string | null) => void
+
+  /** Left navigation sidebar. */
+  sidebarOpen: boolean
+  setSidebarOpen: (open: boolean) => void
+
+  /** Global search dialog (Ctrl+K). */
+  searchDialogOpen: boolean
+  setSearchDialogOpen: (open: boolean) => void
+
+  /** Bumped whenever a card's favourite flag changes, so the sidebar reloads. */
+  favoritesVersion: number
+  bumpFavorites: () => void
 }
 
 export const useWorkspace = create<WorkspaceUIState>((set) => ({
@@ -29,4 +41,13 @@ export const useWorkspace = create<WorkspaceUIState>((set) => ({
 
   openColumnMenuId: null,
   setOpenColumnMenu: (id) => set({ openColumnMenuId: id }),
+
+  sidebarOpen: false,
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
+
+  searchDialogOpen: false,
+  setSearchDialogOpen: (open) => set({ searchDialogOpen: open }),
+
+  favoritesVersion: 0,
+  bumpFavorites: () => set((s) => ({ favoritesVersion: s.favoritesVersion + 1 })),
 }))

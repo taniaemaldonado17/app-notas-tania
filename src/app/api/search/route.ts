@@ -20,9 +20,9 @@ export async function GET(req: Request) {
     where: {
       column: { page: { userId } },
       OR: [
-        { title: { contains: q } },
-        { description: { contains: q } },
-        { checklist: { some: { text: { contains: q } } } },
+        { title: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+        { checklist: { some: { text: { contains: q, mode: 'insensitive' } } } },
       ],
     },
     select: {
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
         },
       },
     },
-    take: 50,
+    take: 30,
   })
 
   const results = cards.map((c) => ({

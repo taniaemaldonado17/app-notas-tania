@@ -62,6 +62,7 @@ export async function PATCH(
       subtitle?: string | null
       icon?: string | null
       coverUrl?: string | null
+      favorite?: boolean
     } = {}
     if (typeof body.title === 'string') data.title = body.title.trim()
     if (typeof body.subtitle === 'string')
@@ -69,6 +70,7 @@ export async function PATCH(
     if (typeof body.icon === 'string') data.icon = body.icon.trim() || null
     if (typeof body.coverUrl === 'string')
       data.coverUrl = body.coverUrl.trim() || null
+    if (typeof body.favorite === 'boolean') data.favorite = body.favorite
 
     const page = await db.page.update({ where: { id }, data })
     return NextResponse.json({ page })

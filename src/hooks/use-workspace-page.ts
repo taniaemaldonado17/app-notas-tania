@@ -248,7 +248,7 @@ export function useWorkspacePage(pageId: string | null) {
   const updateCard = useCallback(
     async (
       cardId: string,
-      payload: Partial<Pick<Card, 'title' | 'description' | 'coverUrl' | 'accentColor' | 'icon'>>
+      payload: Partial<Pick<Card, 'title' | 'description' | 'coverUrl' | 'accentColor' | 'icon' | 'favorite'>>
     ) => {
       const current = pageRef.current
       if (!current) return

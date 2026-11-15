@@ -10,13 +10,14 @@ export async function GET() {
 
   const pages = await db.page.findMany({
     where: { userId },
-    orderBy: { updatedAt: 'desc' },
+    orderBy: { createdAt: 'asc' },
     select: {
       id: true,
       title: true,
       subtitle: true,
       icon: true,
       coverUrl: true,
+      favorite: true,
       createdAt: true,
       updatedAt: true,
       _count: { select: { columns: true } },
