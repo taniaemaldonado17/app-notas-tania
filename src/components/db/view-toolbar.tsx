@@ -219,7 +219,7 @@ export function ViewToolbar({
     <div className="flex items-center gap-0.5">
       <Popover>
         <PopoverTrigger asChild>
-          <button type="button" className={cn(btn, view.filters.length > 0 && 'text-[#2383e2]')} title="Filtrar">
+          <button type="button" className={cn(btn, view.filters.length > 0 && 'text-primary')} title="Filtrar">
             <ListFilter className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Filtrar</span>
             {view.filters.length > 0 && <span className="tabular-nums">{view.filters.length}</span>}
@@ -232,7 +232,7 @@ export function ViewToolbar({
 
       <Popover>
         <PopoverTrigger asChild>
-          <button type="button" className={cn(btn, view.sorts.length > 0 && 'text-[#2383e2]')} title="Ordenar">
+          <button type="button" className={cn(btn, view.sorts.length > 0 && 'text-primary')} title="Ordenar">
             <ArrowUpDown className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Ordenar</span>
           </button>
@@ -287,7 +287,7 @@ export function ViewToolbar({
         </PopoverContent>
       </Popover>
 
-      <Button size="sm" className="ml-1 h-7 bg-[#2383e2] px-2.5 text-xs text-white hover:bg-[#1a6fc4]" onClick={onNew}>
+      <Button size="sm" className="ml-1 h-7 bg-primary px-2.5 text-xs text-white hover:bg-primary/90" onClick={onNew}>
         Nuevo
       </Button>
     </div>

@@ -127,7 +127,7 @@ export function PropertyDisplay({
         <span
           className={cn(
             'inline-flex h-4 w-4 items-center justify-center rounded-[3px] border',
-            value === true ? 'border-[#2383e2] bg-[#2383e2] text-white' : 'border-muted-foreground/50'
+            value === true ? 'border-primary bg-primary text-white' : 'border-muted-foreground/50'
           )}
         >
           {value === true && <Check className="h-3 w-3" strokeWidth={3} />}

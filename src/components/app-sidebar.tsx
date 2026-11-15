@@ -328,7 +328,7 @@ function NavRow({
       onClick={onClick}
       className={cn(
         'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-sidebar-accent',
-        active ? 'bg-sidebar-accent font-medium text-foreground' : 'text-sidebar-foreground/85'
+        active ? 'xc-selected bg-sidebar-accent font-medium text-foreground' : 'text-sidebar-foreground/85'
       )}
     >
       <RowIcon icon={icon} />
@@ -399,7 +399,7 @@ function PageRow({
     <div
       className={cn(
         'group/row flex h-8 items-center rounded-md hover:bg-sidebar-accent',
-        active && 'bg-sidebar-accent'
+        active && 'xc-selected bg-sidebar-accent'
       )}
     >
       <button

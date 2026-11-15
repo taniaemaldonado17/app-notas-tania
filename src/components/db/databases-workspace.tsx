@@ -373,7 +373,8 @@ function computeStat(item: StatItem, databases: DatabaseDef[]): string {
       const v = resolveValue(ctx, db, r, prop)
       return s + (typeof v === 'number' ? v : 0)
     }, 0)
-    return formatNumber(total, prop.numberFormat)
+    // Big round amounts read better without ",00" on a dashboard tile.
+    return formatNumber(total, prop.numberFormat).replace(/,00(?=\D*$)/, '')
   }
   return String(rows.length)
 }
@@ -408,7 +409,7 @@ function StatsSection({
                 {item.icon && <span>{item.icon}</span>}
                 <span className="truncate">{item.label}</span>
               </span>
-              <span className="mt-3 truncate text-3xl font-semibold tabular-nums">{computeStat(item, databases)}</span>
+              <span className="mt-3 truncate text-[clamp(1.2rem,1.9vw,1.875rem)] font-semibold tabular-nums tracking-tight">{computeStat(item, databases)}</span>
             </button>
           </PopoverTrigger>
           <PopoverContent align="start" className="w-[22rem] max-w-[calc(100vw-2rem)] p-3">

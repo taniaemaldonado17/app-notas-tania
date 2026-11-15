@@ -6,8 +6,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", var(--font-inter), "Segoe UI", system-ui, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, var(--font-geist-mono), Consolas, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -43,76 +43,80 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* LIGHT MODE — Notion-like clean white */
+/* LIGHT MODE — macOS / Xcode light (system colors, Apple blue accent) */
 :root {
-  --radius: 0.5rem;
+  --radius: 0.625rem;
   --background: #ffffff;
-  --foreground: #37352f;
+  --foreground: #1d1d1f;
   --card: #ffffff;
-  --card-foreground: #37352f;
-  --popover: #ffffff;
-  --popover-foreground: #37352f;
-  --primary: #37352f;
+  --card-foreground: #1d1d1f;
+  --popover: #fbfbfd;
+  --popover-foreground: #1d1d1f;
+  --primary: #007aff;
   --primary-foreground: #ffffff;
-  --secondary: #f7f6f3;
-  --secondary-foreground: #37352f;
-  --muted: #f7f6f3;
-  --muted-foreground: #9b9a97;
-  --accent: #f1f1ef;
-  --accent-foreground: #37352f;
-  --destructive: #e03e3e;
-  --border: #ebebea;
-  --input: #ebebea;
-  --ring: #91918e;
-  --chart-1: #e0584c;
-  --chart-2: #0b6e99;
-  --chart-3: #4f9d69;
-  --chart-4: #d39e4f;
-  --chart-5: #8e7cc3;
-  --sidebar: #f7f6f3;
-  --sidebar-foreground: #37352f;
-  --sidebar-primary: #37352f;
+  --secondary: #f2f2f7;
+  --secondary-foreground: #1d1d1f;
+  --muted: #f2f2f7;
+  --muted-foreground: #86868b;
+  --accent: #ececf1;
+  --accent-foreground: #1d1d1f;
+  --destructive: #ff3b30;
+  --border: #e3e3e8;
+  --input: #d9d9de;
+  --ring: #007aff;
+  --chart-1: #007aff;
+  --chart-2: #34c759;
+  --chart-3: #ff9500;
+  --chart-4: #af52de;
+  --chart-5: #ff2d55;
+  --sidebar: #f2f2f5;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #007aff;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #efefef;
-  --sidebar-accent-foreground: #37352f;
-  --sidebar-border: #ebebea;
-  --sidebar-ring: #91918e;
+  --sidebar-accent: #e4e4e9;
+  --sidebar-accent-foreground: #1d1d1f;
+  --sidebar-border: #dcdce1;
+  --sidebar-ring: #007aff;
+  --shadow-float: 0 0 0 0.5px rgb(0 0 0 / 0.12), 0 10px 32px rgb(0 0 0 / 0.14), 0 2px 6px rgb(0 0 0 / 0.06);
+  --shadow-card: 0 0 0 0.5px rgb(0 0 0 / 0.08), 0 1px 3px rgb(0 0 0 / 0.06);
 }
 
-/* DARK MODE — Notion dark (#191919 background) */
+/* DARK MODE — Xcode "Default (Dark)": graphite editor, lighter navigator */
 .dark {
-  --radius: 0.5rem;
-  --background: #191919;
-  --foreground: #e6e6e6;
-  --card: #252525;
-  --card-foreground: #e6e6e6;
-  --popover: #252525;
-  --popover-foreground: #e6e6e6;
-  --primary: #e6e6e6;
-  --primary-foreground: #191919;
-  --secondary: #2f3437;
-  --secondary-foreground: #e6e6e6;
-  --muted: #2f3437;
-  --muted-foreground: #9b9a97;
-  --accent: #2f3437;
-  --accent-foreground: #e6e6e6;
-  --destructive: #e0584c;
-  --border: rgba(255, 255, 255, 0.06);
-  --input: rgba(255, 255, 255, 0.08);
-  --ring: #5a5a5a;
-  --chart-1: #e0584c;
-  --chart-2: #2ea8c4;
-  --chart-3: #5fb88a;
-  --chart-4: #d39e4f;
-  --chart-5: #8e7cc3;
-  --sidebar: #202020;
-  --sidebar-foreground: #e6e6e6;
-  --sidebar-primary: #e6e6e6;
-  --sidebar-primary-foreground: #191919;
-  --sidebar-accent: #2f3437;
-  --sidebar-accent-foreground: #e6e6e6;
-  --sidebar-border: rgba(255, 255, 255, 0.06);
-  --sidebar-ring: #5a5a5a;
+  --radius: 0.625rem;
+  --background: #1f1f24;
+  --foreground: #e8e8ed;
+  --card: #29292e;
+  --card-foreground: #e8e8ed;
+  --popover: #2c2c31;
+  --popover-foreground: #e8e8ed;
+  --primary: #0a84ff;
+  --primary-foreground: #ffffff;
+  --secondary: #323238;
+  --secondary-foreground: #e8e8ed;
+  --muted: #2a2a30;
+  --muted-foreground: #8e8e93;
+  --accent: #36363c;
+  --accent-foreground: #f2f2f7;
+  --destructive: #ff453a;
+  --border: #38383e;
+  --input: #424248;
+  --ring: #0a84ff;
+  --chart-1: #0a84ff;
+  --chart-2: #30d158;
+  --chart-3: #ff9f0a;
+  --chart-4: #bf5af2;
+  --chart-5: #ff375f;
+  --sidebar: #28282d;
+  --sidebar-foreground: #dcdce1;
+  --sidebar-primary: #0a84ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #38383e;
+  --sidebar-accent-foreground: #f2f2f7;
+  --sidebar-border: #18181c;
+  --sidebar-ring: #0a84ff;
+  --shadow-float: 0 0 0 0.5px rgb(0 0 0 / 0.6), inset 0 0.5px 0 rgb(255 255 255 / 0.08), 0 14px 40px rgb(0 0 0 / 0.45);
+  --shadow-card: 0 0 0 0.5px rgb(0 0 0 / 0.5), inset 0 0.5px 0 rgb(255 255 255 / 0.05), 0 1px 3px rgb(0 0 0 / 0.25);
 }
 
 @layer base {
@@ -123,7 +127,17 @@
     @apply bg-background text-foreground;
   }
   body {
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: var(--font-sans);
+    font-feature-settings: "rlig" 1, "calt" 1, "cv11" 1, "ss01" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.006em;
+  }
+  h1, h2, h3, .text-2xl, .text-3xl, .text-4xl {
+    letter-spacing: -0.022em;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 32%, transparent);
   }
 }
 
@@ -220,28 +234,29 @@
 
 /* Notion-style option colours (select chips, stat cards) */
 :root {
-  --opt-default-bg: #e3e2e080; --opt-default-fg: #32302c;
-  --opt-gray-bg: #e3e2e0;      --opt-gray-fg: #32302c;
-  --opt-brown-bg: #eee0da;     --opt-brown-fg: #442a1e;
-  --opt-orange-bg: #fadec9;    --opt-orange-fg: #49290e;
-  --opt-yellow-bg: #fdecc8;    --opt-yellow-fg: #402c1b;
-  --opt-green-bg: #dbeddb;     --opt-green-fg: #1c3829;
-  --opt-blue-bg: #d3e5ef;      --opt-blue-fg: #183347;
-  --opt-purple-bg: #e8deee;    --opt-purple-fg: #412454;
-  --opt-pink-bg: #f5e0e9;      --opt-pink-fg: #4c2337;
-  --opt-red-bg: #ffe2dd;       --opt-red-fg: #5d1715;
+  /* Apple system colors, as soft tints (macOS tag style) */
+  --opt-default-bg: #e9e9ee;   --opt-default-fg: #3a3a3c;
+  --opt-gray-bg: #e5e5ea;      --opt-gray-fg: #48484a;
+  --opt-brown-bg: #efe6dc;     --opt-brown-fg: #6f5537;
+  --opt-orange-bg: #ffead1;    --opt-orange-fg: #9a5200;
+  --opt-yellow-bg: #fff3c4;    --opt-yellow-fg: #7d6200;
+  --opt-green-bg: #daf5e1;     --opt-green-fg: #1b7a35;
+  --opt-blue-bg: #d9eaff;      --opt-blue-fg: #0058b8;
+  --opt-purple-bg: #f1e0fa;    --opt-purple-fg: #7a2fa3;
+  --opt-pink-bg: #ffe0e7;      --opt-pink-fg: #b0153a;
+  --opt-red-bg: #ffe1df;       --opt-red-fg: #b4231b;
 }
 .dark {
-  --opt-default-bg: #373737;   --opt-default-fg: #ffffffde;
-  --opt-gray-bg: #5a5a5a;      --opt-gray-fg: #ffffffde;
-  --opt-brown-bg: #603b2c;     --opt-brown-fg: #ffffffde;
-  --opt-orange-bg: #854c1d;    --opt-orange-fg: #ffffffde;
-  --opt-yellow-bg: #89632a;    --opt-yellow-fg: #ffffffde;
-  --opt-green-bg: #2b593f;     --opt-green-fg: #ffffffde;
-  --opt-blue-bg: #28456c;      --opt-blue-fg: #ffffffde;
-  --opt-purple-bg: #492f64;    --opt-purple-fg: #ffffffde;
-  --opt-pink-bg: #69314c;      --opt-pink-fg: #ffffffde;
-  --opt-red-bg: #6e3630;       --opt-red-fg: #ffffffde;
+  --opt-default-bg: #3a3a40;                  --opt-default-fg: #e5e5ea;
+  --opt-gray-bg: rgb(142 142 147 / 0.28);     --opt-gray-fg: #d1d1d6;
+  --opt-brown-bg: rgb(172 142 104 / 0.30);    --opt-brown-fg: #dcc6a6;
+  --opt-orange-bg: rgb(255 159 10 / 0.24);    --opt-orange-fg: #ffb547;
+  --opt-yellow-bg: rgb(255 214 10 / 0.20);    --opt-yellow-fg: #ffe066;
+  --opt-green-bg: rgb(48 209 88 / 0.22);      --opt-green-fg: #6fe28f;
+  --opt-blue-bg: rgb(10 132 255 / 0.26);      --opt-blue-fg: #70b7ff;
+  --opt-purple-bg: rgb(191 90 242 / 0.26);    --opt-purple-fg: #d99cff;
+  --opt-pink-bg: rgb(255 55 95 / 0.24);       --opt-pink-fg: #ff8aa2;
+  --opt-red-bg: rgb(255 69 58 / 0.24);        --opt-red-fg: #ff8a80;
 }
 [data-opt-color] { background: var(--opt-default-bg); color: var(--opt-default-fg); }
 [data-opt-color="gray"] { background: var(--opt-gray-bg); color: var(--opt-gray-fg); }
@@ -380,7 +395,7 @@
 }
 .embed-form textarea { font-family: var(--font-geist-mono), monospace; font-size: 12px; resize: vertical; }
 .embed-form input:focus,
-.embed-form textarea:focus { border-color: #2383e2; }
+.embed-form textarea:focus { border-color: var(--primary); }
 .embed-hint { font-size: 12px; color: var(--muted-foreground); }
 .embed-error { font-size: 12px; color: var(--destructive); }
 .embed-link {
@@ -402,11 +417,161 @@
   color: var(--muted-foreground);
 }
 .embed-actions button:hover { background: var(--accent); color: var(--foreground); }
-.embed-actions button.primary { background: #2383e2; color: #fff; }
-.embed-actions button.primary:hover { background: #1b6ec2; }
+.embed-actions button.primary { background: var(--primary); color: #fff; }
+.embed-actions button.primary:hover { background: color-mix(in oklab, var(--primary) 85%, black); }
 
 /* Full-page detail: keep the content in a readable column, like a Notion page. */
 [data-panel-mode="full"] .peek-body {
   padding-left: max(1.25rem, calc((100% - 900px) / 2));
   padding-right: max(1.25rem, calc((100% - 900px) / 2));
+}
+
+/* =====================================================================
+   Apple / Xcode look — unlayered on purpose so it wins over utilities.
+   ===================================================================== */
+
+/* Toolbar: translucent "unified title bar" */
+header.sticky {
+  background: color-mix(in oklab, var(--background) 72%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Sidebar (navigator): selected row in accent blue, like Xcode */
+aside[aria-label="Navegación"] {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--sidebar) 100%, white 2%), var(--sidebar));
+}
+.xc-selected,
+.xc-selected:hover {
+  background: var(--primary);
+  color: #fff;
+}
+.xc-selected *,
+.xc-selected:hover * {
+  color: #fff;
+}
+.xc-selected button:hover {
+  background: rgb(255 255 255 / 0.18);
+}
+
+/* Floating surfaces: menus, popovers, selects — vibrancy + soft shadow */
+[data-slot="popover-content"],
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"],
+[data-slot="select-content"],
+[data-slot="context-menu-content"] {
+  border-radius: 12px;
+  border-color: transparent;
+  background: color-mix(in oklab, var(--popover) 86%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  backdrop-filter: saturate(180%) blur(24px);
+  box-shadow: var(--shadow-float);
+}
+[data-slot="dropdown-menu-content"],
+[data-slot="context-menu-content"],
+[data-slot="select-content"] {
+  padding: 5px;
+}
+[data-slot="dialog-content"] {
+  border-radius: 14px;
+  border-color: transparent;
+  box-shadow: var(--shadow-float);
+}
+
+/* Menu items: macOS highlight = accent fill with white text */
+[data-slot="dropdown-menu-item"],
+[data-slot="dropdown-menu-sub-trigger"],
+[data-slot="context-menu-item"],
+[data-slot="select-item"] {
+  border-radius: 6px;
+}
+[data-slot="dropdown-menu-item"][data-highlighted],
+[data-slot="dropdown-menu-sub-trigger"][data-highlighted],
+[data-slot="dropdown-menu-sub-trigger"][data-state="open"],
+[data-slot="context-menu-item"][data-highlighted],
+[data-slot="select-item"][data-highlighted] {
+  background: var(--primary);
+  color: #fff;
+}
+[data-slot="dropdown-menu-item"][data-highlighted] *,
+[data-slot="dropdown-menu-sub-trigger"][data-highlighted] *,
+[data-slot="context-menu-item"][data-highlighted] *,
+[data-slot="select-item"][data-highlighted] * {
+  color: #fff;
+}
+[data-slot="dropdown-menu-separator"],
+[data-slot="context-menu-separator"] {
+  margin-left: 6px;
+  margin-right: 6px;
+}
+
+/* Tooltips: neutral, like macOS help tags */
+[data-slot="tooltip-content"] {
+  background: color-mix(in oklab, var(--popover) 92%, transparent);
+  color: var(--popover-foreground);
+  border-radius: 7px;
+  box-shadow: var(--shadow-float);
+}
+[data-slot="tooltip-content"] svg { display: none; }
+
+/* Buttons: filled buttons get the subtle macOS bevel */
+[data-slot="button"].bg-primary {
+  box-shadow: inset 0 0.5px 0 rgb(255 255 255 / 0.25), 0 0.5px 1.5px rgb(0 0 0 / 0.25);
+}
+[data-slot="button"]:active:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+/* Text fields: blue focus halo */
+[data-slot="input"],
+textarea[data-slot="textarea"] {
+  border-radius: 7px;
+}
+[data-slot="input"]:focus-visible,
+textarea[data-slot="textarea"]:focus-visible {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3.5px color-mix(in oklab, var(--primary) 35%, transparent);
+}
+
+/* Cards: hairline + soft shadow instead of a hard border */
+.bg-card.shadow-sm {
+  border-color: transparent;
+  box-shadow: var(--shadow-card);
+}
+.bg-card.shadow-sm:hover {
+  box-shadow: var(--shadow-card), 0 4px 14px rgb(0 0 0 / 0.12);
+}
+
+/* Detail panel: floating window shadow */
+[role="dialog"][data-panel-mode] {
+  border-color: transparent;
+  box-shadow: var(--shadow-float);
+}
+[role="dialog"][data-panel-mode="full"] {
+  box-shadow: none;
+}
+
+/* Thin overlay scrollbars (macOS style) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(142 142 147 / 0.4) transparent;
+}
+.notion-scroll::-webkit-scrollbar-thumb {
+  background: rgb(142 142 147 / 0.35);
+  background-clip: padding-box;
+}
+
+/* Editor: Apple radii and SF Mono for code */
+.bn-container[data-color-scheme] {
+  --bn-border-radius-small: 6px;
+  --bn-border-radius-medium: 8px;
+  --bn-border-radius-large: 12px;
+}
+.bn-container .bn-inline-content code,
+.bn-container pre,
+.bn-container code {
+  font-family: var(--font-mono);
+}
+.embed-form textarea {
+  font-family: var(--font-mono);
 }

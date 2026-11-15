@@ -107,7 +107,7 @@ export function ProgressBar({ ratio, label }: { ratio: number; label: string }) 
     <span className="flex w-full min-w-0 items-center gap-2">
       <span className="h-1.5 min-w-10 flex-1 overflow-hidden rounded-full bg-muted">
         <span
-          className="block h-full rounded-full bg-[#2383e2]"
+          className="block h-full rounded-full bg-primary"
           style={{ width: `${Math.round(ratio * 100)}%` }}
         />
       </span>
