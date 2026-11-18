@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowUpDown, Eye, EyeOff, ListFilter, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
+import { ArrowUpDown, Download, Eye, EyeOff, FileText, ListFilter, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
+import { viewRows } from '@/lib/db-resolve'
+import { exportFileName, printHtml, viewPrintHtml } from '@/lib/db-export'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { PropertyIcon } from '@/components/db/property-menu'
@@ -207,8 +209,17 @@ export function ViewToolbar({
   onSearch: (q: string) => void
   onNew: () => void
 }) {
-  const { ws } = useDb()
+  const { ws, ctx, people } = useDb()
   const [searchOpen, setSearchOpen] = useState(!!search)
+  const [downloadOpen, setDownloadOpen] = useState(false)
+
+  /** Exactly what the view shows (filters, sorts and search applied). */
+  function downloadPdf() {
+    setDownloadOpen(false)
+    const rows = viewRows(ctx, db, view, search)
+    const fileName = exportFileName(db, view)
+    printHtml(viewPrintHtml({ ctx, db, view, rows, people, pageTitle: ws.page?.title, docTitle: fileName }), fileName)
+  }
 
   function patchView(patch: Partial<ViewDef>) {
     ws.updateDatabase(db.id, { views: db.views.map((v) => (v.id === view.id ? { ...v, ...patch } : v)) })
@@ -276,6 +287,28 @@ export function ViewToolbar({
           <Search className="h-3.5 w-3.5" />
         </button>
       )}
+
+      <Popover open={downloadOpen} onOpenChange={setDownloadOpen}>
+        <PopoverTrigger asChild>
+          <button type="button" className={btn} title="Descargar esta vista" aria-label="Descargar esta vista">
+            <Download className="h-3.5 w-3.5" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-64 p-1">
+          <p className="px-2 pb-1 pt-1.5 text-[11px] font-medium text-muted-foreground">Descargar «{view.name}»</p>
+          <button
+            type="button"
+            onClick={downloadPdf}
+            className="flex w-full items-start gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+          >
+            <FileText className="mt-0.5 h-4 w-4 shrink-0 text-[#ff3b30]" />
+            <span>
+              PDF
+              <span className="block text-[11px] text-muted-foreground">En el diálogo elegí «Guardar como PDF»</span>
+            </span>
+          </button>
+        </PopoverContent>
+      </Popover>
 
       <Popover>
         <PopoverTrigger asChild>
