@@ -423,6 +423,19 @@ export async function updateDatabase(
   })
 }
 
+export type ImportPayload = {
+  properties: PropertyDef[]
+  rows: { title: string; values: Record<string, RowValue> }[]
+} & ({ pageId: string; title: string; icon?: string | null } | { databaseId: string; addToViews?: string[] })
+
+/** Creates a database from an imported table, or appends rows to one. */
+export async function importDatabase(payload: ImportPayload): Promise<{ database: DatabaseDef; imported: number }> {
+  return jsonFetch<{ database: DatabaseDef; imported: number }>(`${API_BASE}/databases/import`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export async function deleteDatabase(databaseId: string): Promise<void> {
   await jsonFetch(`${API_BASE}/databases/${databaseId}`, { method: 'DELETE' })
 }

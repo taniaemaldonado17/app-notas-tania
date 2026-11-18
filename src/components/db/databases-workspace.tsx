@@ -6,6 +6,7 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronRight,
+  FileUp,
   Heading,
   LayoutGrid,
   Loader2,
@@ -34,6 +35,7 @@ import { TopBar, CoverBanner } from '@/components/top-bar'
 import { DbProvider, useDb, type DbContextValue, type Person } from '@/components/db/db-context'
 import { DatabaseBlock } from '@/components/db/database-block'
 import { RowPanel } from '@/components/db/row-panel'
+import { ImportDialog } from '@/components/db/import-dialog'
 import { FilterEditor } from '@/components/db/view-toolbar'
 import { ColorDot } from '@/components/db/chips'
 import { useDatabasesPage } from '@/hooks/use-databases-page'
@@ -160,6 +162,7 @@ function Dashboard({ databases, layout }: { databases: DatabaseDef[]; layout: Pa
   const { ws } = useDb()
   const hasViews = layout.sections.length > 0
   const [sourcesOpen, setSourcesOpen] = useState(!hasViews)
+  const [importOpen, setImportOpen] = useState(false)
 
   function save(sections: LayoutSection[]) {
     ws.updateLayout({ ...layout, sections })
@@ -226,17 +229,28 @@ function Dashboard({ databases, layout }: { databases: DatabaseDef[]; layout: Pa
             {databases.map((d) => (
               <DatabaseBlock key={d.id} db={d} />
             ))}
-            <button
-              type="button"
-              onClick={() => ws.createDatabase()}
-              className="flex items-center gap-1.5 rounded px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-            >
-              <Plus className="h-4 w-4" />
-              Nueva base de datos
-            </button>
+            <div className="flex flex-wrap items-center gap-1">
+              <button
+                type="button"
+                onClick={() => ws.createDatabase()}
+                className="flex items-center gap-1.5 rounded px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <Plus className="h-4 w-4" />
+                Nueva base de datos
+              </button>
+              <button
+                type="button"
+                onClick={() => setImportOpen(true)}
+                className="flex items-center gap-1.5 rounded px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <FileUp className="h-4 w-4" />
+                Importar CSV
+              </button>
+            </div>
           </div>
         )}
       </section>
+      <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
     </div>
   )
 }

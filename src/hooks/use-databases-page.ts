@@ -187,6 +187,28 @@ export function useDatabasesPage(pageId: string | null) {
     [mapDatabases]
   )
 
+  /**
+   * Imports a table: a new database on this page, or rows appended to
+   * `databaseId`. Throws on failure so the import dialog can show why.
+   */
+  const importDatabase = useCallback(
+    async (
+      payload:
+        | { title: string; icon?: string | null; properties: PropertyDef[]; rows: { title: string; values: Record<string, RowValue> }[] }
+        | { databaseId: string; addToViews?: string[]; properties: PropertyDef[]; rows: { title: string; values: Record<string, RowValue> }[] }
+    ): Promise<DatabaseDef | null> => {
+      const current = pageRef.current
+      if (!current) return null
+      const body = 'databaseId' in payload ? payload : { ...payload, pageId: current.id }
+      const { database } = await track(api.importDatabase(body))
+      mapDatabases((dbs) =>
+        dbs.some((d) => d.id === database.id) ? dbs.map((d) => (d.id === database.id ? database : d)) : [...dbs, database]
+      )
+      return database
+    },
+    [mapDatabases]
+  )
+
   const deleteDatabase = useCallback(
     async (databaseId: string) => {
       const current = pageRef.current
@@ -324,6 +346,7 @@ export function useDatabasesPage(pageId: string | null) {
     updateLayout,
     updateDatabase,
     createDatabase,
+    importDatabase,
     deleteDatabase,
     createRow,
     updateRowValues,

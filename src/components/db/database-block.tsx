@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import {
   Calendar as CalendarIcon,
   Copy,
+  FileUp,
   GalleryHorizontalEnd,
   KanbanSquare,
   List,
@@ -23,6 +24,7 @@ import {
 import { useDb } from '@/components/db/db-context'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { ViewToolbar } from '@/components/db/view-toolbar'
+import { ImportDialog } from '@/components/db/import-dialog'
 import { TableView } from '@/components/db/table-view'
 import { BoardView, CalendarView, GalleryView, ListView } from '@/components/db/card-views'
 import { viewRows } from '@/lib/db-resolve'
@@ -274,7 +276,10 @@ function ViewTab({
 
 function DatabaseMenu({ db, onRename }: { db: DatabaseDef; onRename: () => void }) {
   const { ws } = useDb()
+  const [importOpen, setImportOpen] = useState(false)
   return (
+    <>
+    <ImportDialog open={importOpen} onOpenChange={setImportOpen} target={db} />
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
@@ -290,6 +295,10 @@ function DatabaseMenu({ db, onRename }: { db: DatabaseDef; onRename: () => void 
           <Pencil className="h-3.5 w-3.5" />
           Cambiar nombre
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setImportOpen(true)} className="cursor-pointer gap-2 text-sm">
+          <FileUp className="h-3.5 w-3.5" />
+          Importar filas (CSV)
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => {
@@ -304,5 +313,6 @@ function DatabaseMenu({ db, onRename }: { db: DatabaseDef; onRename: () => void 
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    </>
   )
 }
