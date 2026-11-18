@@ -10,6 +10,7 @@ import {
   formatDate,
   formatNumber,
   getProperty,
+  imageSrcFromLink,
   todayISO,
   type DatabaseDef,
   type DbRow,
@@ -198,6 +199,157 @@ function ganttHtml(ctx: ResolveCtx, db: DatabaseDef, view: ViewDef, rows: DbRow[
   return `<section class="gantt"><div class="g-head"><div class="g-label"></div><div class="g-track">${months}</div></div><div class="g-body">${lines}${todayLine}</div></section>`
 }
 
+/* ------------------------- Layouts per view type ------------------------- */
+
+type LayoutArgs = { ctx: ResolveCtx; db: DatabaseDef; view: ViewDef; rows: DbRow[]; people: ExportPerson[] }
+
+function rowTitleHtml(r: DbRow): string {
+  return esc(`${r.icon ? `${r.icon} ` : ''}${r.title || 'Sin título'}`)
+}
+
+/** Visible non-title properties with something to show for this row. */
+function shownValues({ ctx, db, view, people }: LayoutArgs, r: DbRow, skip: (string | undefined)[] = []): string[] {
+  return view.visibleProperties
+    .map((id) => getProperty(db, id))
+    .filter((p): p is PropertyDef => !!p && p.type !== 'title' && !skip.includes(p.id))
+    .map((p) => cellHtml(ctx, db, r, p, people))
+    .filter((h) => h !== '')
+}
+
+function tableHtml({ ctx, db, view, rows, people }: LayoutArgs): string {
+  const cols = exportColumns(db, view)
+  const head = cols.map((p) => `<th>${esc(p.name)}</th>`).join('')
+  const body = rows.map((r) => `<tr>${cols.map((p) => `<td>${cellHtml(ctx, db, r, p, people)}</td>`).join('')}</tr>`).join('')
+  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`
+}
+
+function cardHtml(a: LayoutArgs, r: DbRow, skip: (string | undefined)[] = [], cover?: string | null): string {
+  const vals = shownValues(a, r, skip)
+    .map((h) => `<div class="val">${h}</div>`)
+    .join('')
+  const inner = `<div class="title">${rowTitleHtml(r)}</div>${vals}`
+  if (cover === undefined) return `<div class="card">${inner}</div>`
+  const bg = cover ? ` style="background-image:url('${esc(cover)}')"` : ''
+  return `<div class="card has-cover"><div class="cover"${bg}></div><div class="inner">${inner}</div></div>`
+}
+
+/** Board: one section per group (option of the "group by" property). */
+function boardHtml(a: LayoutArgs): string {
+  const { ctx, db, view, rows, people } = a
+  const prop = view.groupBy ? getProperty(db, view.groupBy) : undefined
+  if (!prop) return `<div class="cards">${rows.map((r) => cardHtml(a, r)).join('')}</div>`
+
+  type G = { key: string; head: string }
+  const groups: G[] = []
+  if (prop.type === 'checkbox') {
+    groups.push({ key: 'true', head: '✅ Marcada' }, { key: '__none', head: '<span class="muted">Sin marcar</span>' })
+  } else if (prop.type === 'person') {
+    groups.push({ key: '__none', head: `<span class="muted">Sin ${esc(prop.name.toLowerCase())}</span>` })
+    for (const p of people) groups.push({ key: p.id, head: esc(p.name || p.email) })
+  } else {
+    groups.push({ key: '__none', head: `<span class="muted">Sin ${esc(prop.name.toLowerCase())}</span>` })
+    for (const o of prop.options ?? []) groups.push({ key: o.id, head: chip(o.name, o.color) })
+  }
+  const by = new Map<string, DbRow[]>(groups.map((g) => [g.key, []]))
+  for (const r of rows) {
+    const v = resolveValue(ctx, db, r, prop)
+    let key = '__none'
+    if (prop.type === 'checkbox') key = v === true ? 'true' : '__none'
+    else if (Array.isArray(v)) key = v[0] ?? '__none'
+    else if (typeof v === 'string' && v) key = v
+    ;(by.get(key) ?? by.get('__none'))!.push(r)
+  }
+  // Columns side by side, like on screen (wrapping after 5).
+  const shown = groups.filter((g) => by.get(g.key)!.length > 0)
+  const cols = Math.min(Math.max(shown.length, 1), 5)
+  return `<div class="board" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${shown
+    .map((g) => {
+      const list = by.get(g.key)!
+      return `<section class="column"><div class="group-head">${g.head}<span class="count">${list.length}</span></div>${list
+        .map((r) => cardHtml(a, r, [prop.id]))
+        .join('')}</section>`
+    })
+    .join('')}</div>`
+}
+
+function galleryHtml(a: LayoutArgs): string {
+  const { view, rows } = a
+  return `<div class="cards gallery">${rows
+    .map((r) => cardHtml(a, r, [view.coverProperty], view.coverProperty ? imageSrcFromLink(r.values[view.coverProperty]) : undefined))
+    .join('')}</div>`
+}
+
+function listHtml(a: LayoutArgs): string {
+  return `<div class="list">${a.rows
+    .map((r) => `<div class="item"><span class="title">${rowTitleHtml(r)}</span><span class="vals">${shownValues(a, r).join('<span class="muted">·</span>')}</span></div>`)
+    .join('')}</div>`
+}
+
+const LONG_MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+const CAL_MAX_PER_DAY = 5
+
+/** Calendar: a month grid (Monday first) per month that has items. */
+function calendarHtml({ ctx, db, view, rows }: LayoutArgs): string {
+  const dateProp = view.dateProperty ? getProperty(db, view.dateProperty) : undefined
+  if (!dateProp) return '<p class="empty">La vista no tiene una propiedad de fecha.</p>'
+  const colorProp =
+    view.visibleProperties.map((id) => getProperty(db, id)).find((p) => p && (p.type === 'select' || p.type === 'status')) ??
+    db.properties.find((p) => p.type === 'status' || p.type === 'select')
+
+  const byDay = new Map<number, DbRow[]>()
+  for (const r of rows) {
+    const v = resolveValue(ctx, db, r, dateProp)
+    if (typeof v !== 'string' || !v) continue
+    const n = dayNum(v)
+    byDay.set(n, [...(byDay.get(n) ?? []), r])
+  }
+  const today = dayNum(todayISO())
+  const days = [...byDay.keys()]
+  const first = new Date((days.length ? Math.min(...days) : today) * DAY)
+  const last = new Date((days.length ? Math.max(...days) : today) * DAY)
+  const months: { y: number; m: number }[] = []
+  for (let y = first.getUTCFullYear(), m = first.getUTCMonth(); y < last.getUTCFullYear() || (y === last.getUTCFullYear() && m <= last.getUTCMonth()); ) {
+    months.push({ y, m })
+    if (++m === 12) {
+      m = 0
+      y++
+    }
+    if (months.length >= 24) break
+  }
+
+  const undated = rows.length - [...byDay.values()].reduce((s, l) => s + l.length, 0)
+  const head = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'].map((d) => `<th>${d}</th>`).join('')
+
+  const grids = months.map(({ y, m }) => {
+    const start = Math.round(Date.UTC(y, m, 1) / DAY)
+    const end = Math.round(Date.UTC(y, m + 1, 0) / DAY)
+    const gridStart = start - ((new Date(start * DAY).getUTCDay() + 6) % 7)
+    const weeks: string[] = []
+    for (let w = gridStart; w <= end; w += 7) {
+      const cells = Array.from({ length: 7 }, (_, i) => {
+        const n = w + i
+        const d = new Date(n * DAY)
+        const items = n < start || n > end ? [] : (byDay.get(n) ?? [])
+        const evs = items
+          .slice(0, CAL_MAX_PER_DAY)
+          .map((r) => {
+            const opt = colorProp ? findOption(colorProp, r.values[colorProp.id]) : undefined
+            const [bg, fg] = PRINT_COLORS[opt?.color ?? 'blue']
+            return `<span class="ev" style="background:${bg};color:${fg}">${rowTitleHtml(r)}</span>`
+          })
+          .join('')
+        const more = items.length > CAL_MAX_PER_DAY ? `<span class="more">${items.length - CAL_MAX_PER_DAY} más</span>` : ''
+        const cls = [n < start || n > end ? 'out' : i >= 5 ? 'wknd' : ''].filter(Boolean).join(' ')
+        return `<td class="${cls}"><div class="num${n === today ? ' today' : ''}"><span>${d.getUTCDate()}</span></div>${evs}${more}</td>`
+      })
+      weeks.push(`<tr>${cells.join('')}</tr>`)
+    }
+    return `<section class="month"><h2>${LONG_MONTHS[m]} ${y}</h2><table class="cal"><thead><tr>${head}</tr></thead><tbody>${weeks.join('')}</tbody></table></section>`
+  })
+  const note = undated > 0 ? `<p class="muted">${undated} ${undated === 1 ? 'fila sin fecha' : 'filas sin fecha'} (no aparecen en el calendario).</p>` : ''
+  return grids.join('') + note
+}
+
 /** Full printable document for a view. */
 export function viewPrintHtml(opts: {
   ctx: ResolveCtx
@@ -209,14 +361,17 @@ export function viewPrintHtml(opts: {
   docTitle: string
 }): string {
   const { ctx, db, view, rows, people } = opts
-  const cols = exportColumns(db, view)
-  const head = cols.map((p) => `<th>${esc(p.name)}</th>`).join('')
-  const body = rows.length
-    ? rows.map((r) => `<tr>${cols.map((p) => `<td>${cellHtml(ctx, db, r, p, people)}</td>`).join('')}</tr>`).join('')
-    : `<tr><td colspan="${cols.length}" class="empty">No hay filas en esta vista.</td></tr>`
   const generated = new Intl.DateTimeFormat('es-AR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date())
   const filtered = view.filters.length ? ` · ${view.filters.length} ${view.filters.length === 1 ? 'filtro' : 'filtros'}` : ''
-  const gantt = view.type === 'timeline' ? ganttHtml(ctx, db, view, rows) : ''
+  const p: LayoutArgs = { ctx, db, view, rows, people }
+  let content: string
+  if (!rows.length) content = '<p class="empty">No hay filas en esta vista.</p>'
+  else if (view.type === 'board') content = boardHtml(p)
+  else if (view.type === 'gallery') content = galleryHtml(p)
+  else if (view.type === 'list') content = listHtml(p)
+  else if (view.type === 'calendar') content = calendarHtml(p)
+  else if (view.type === 'timeline') content = ganttHtml(ctx, db, view, rows) + `<h2 class="detail">Detalle</h2>` + tableHtml(p)
+  else content = tableHtml(p)
 
   return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><title>${esc(opts.docTitle)}</title>
@@ -246,6 +401,40 @@ tr { break-inside: avoid; }
 .g-bar { position: absolute; top: 4px; height: 12px; border-radius: 3px; min-width: 3px; }
 .g-none { color: #aeaeb2; font-size: 9px; padding-left: 4px; }
 .g-today { position: absolute; top: 0; bottom: 0; width: 1px; background: #ff3b30; }
+h2.detail { font-size: 11px; margin: 16px 0 6px; color: #6e6e73; text-transform: uppercase; letter-spacing: 0.04em; }
+/* Board / gallery cards */
+.group { margin-bottom: 14px; }
+.group-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: 11px; font-weight: 600; break-after: avoid; }
+.group-head .count { color: #6e6e73; font-weight: 400; }
+.board { display: grid; gap: 10px; align-items: start; }
+.column { background: #f7f7f8; border-radius: 10px; padding: 6px; }
+.column .card { margin-bottom: 6px; }
+.cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.cards.gallery { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.card { border: 1px solid #d2d2d7; border-radius: 8px; padding: 7px 8px; break-inside: avoid; background: #fff; overflow: hidden; }
+.card.has-cover { padding: 0; }
+.card .cover { height: 90px; background: #f5f5f7 center / cover no-repeat; }
+.card .inner { padding: 7px 8px; }
+.card .title { font-weight: 600; font-size: 10.5px; margin-bottom: 3px; }
+.card .val { margin-top: 3px; color: #3a3a3c; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.muted { color: #8e8e93; }
+/* List */
+.list .item { display: flex; gap: 10px; align-items: baseline; border-bottom: 1px solid #e5e5ea; padding: 5px 2px; break-inside: avoid; }
+.list .item .title { font-weight: 600; flex: none; max-width: 40%; }
+.list .item .vals { display: flex; flex-wrap: wrap; gap: 4px 12px; color: #3a3a3c; }
+/* Calendar */
+.month { break-inside: avoid; margin-bottom: 12px; }
+.month + .month { break-before: page; }
+.month h2 { font-size: 15px; margin: 0 0 6px; text-transform: capitalize; }
+.cal { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.cal th { text-align: right; background: none; border: 0; border-bottom: 1px solid #d2d2d7; }
+.cal td { height: 78px; border: 1px solid #e5e5ea; padding: 3px; vertical-align: top; }
+.cal td.out { background: #fafafa; color: #aeaeb2; }
+.cal td.wknd { background: #fafafa; }
+.cal .num { text-align: right; font-size: 10px; margin-bottom: 2px; }
+.cal .num.today span { background: #ff3b30; color: #fff; border-radius: 9px; padding: 0 5px; font-weight: 600; }
+.ev { display: block; border-radius: 3px; padding: 1px 4px; margin-bottom: 2px; font-size: 8.5px; line-height: 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cal .more { font-size: 8px; color: #6e6e73; }
 </style></head>
 <body>
 <header>
@@ -255,8 +444,7 @@ tr { break-inside: avoid; }
   </div>
   <div class="meta">${rows.length} ${rows.length === 1 ? 'fila' : 'filas'}${filtered}<br>${esc(generated)}</div>
 </header>
-${gantt}
-<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
+${content}
 </body></html>`
 }
 
