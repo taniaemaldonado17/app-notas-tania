@@ -90,6 +90,9 @@ export async function POST(req: Request) {
       if (properties.some((p) => p.type === 'date')) {
         views.push(makeView('calendar', { properties }, 'Calendario'))
       }
+      if (properties.filter((p) => p.type === 'date').length >= 2) {
+        views.push(makeView('timeline', { properties }, 'Cronograma'))
+      }
       const lastDb = await db.database.aggregate({ where: { pageId }, _max: { position: true } })
       databaseId = newId('db')
       await db.database.create({

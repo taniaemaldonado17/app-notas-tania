@@ -137,13 +137,14 @@ export const NUMBER_FORMAT_LABELS: Record<NumberFormat, string> = {
 /* Views                                                               */
 /* ------------------------------------------------------------------ */
 
-export type ViewType = 'table' | 'board' | 'gallery' | 'calendar' | 'list'
+export type ViewType = 'table' | 'board' | 'gallery' | 'calendar' | 'timeline' | 'list'
 
 export const VIEW_TYPE_LABELS: Record<ViewType, string> = {
   table: 'Tabla',
   board: 'Tablero',
   gallery: 'Galería',
   calendar: 'Calendario',
+  timeline: 'Cronograma',
   list: 'Lista',
 }
 
@@ -188,8 +189,10 @@ export type ViewDef = {
   visibleProperties: string[]
   /** board: select/status/multi_select/person/checkbox property to group by */
   groupBy?: string
-  /** calendar: date property */
+  /** calendar: date property · timeline: start date */
   dateProperty?: string
+  /** timeline: end date (optional; without it each item lasts one day) */
+  endDateProperty?: string
   /** gallery: url property used as cover image */
   coverProperty?: string
 }
@@ -297,6 +300,13 @@ export function makeView(type: ViewType, db: Pick<DatabaseDef, 'properties'>, na
   }
   if (type === 'calendar') {
     view.dateProperty = db.properties.find((p) => p.type === 'date')?.id
+  }
+  if (type === 'timeline') {
+    const dates = db.properties.filter((p) => p.type === 'date')
+    const end = dates.find((p) => /fin|end|l[ií]mite|vencim|entrega|deadline|due/i.test(p.name))
+    const start = dates.find((p) => p !== end && /inicio|start|desde|comienzo/i.test(p.name)) ?? dates.find((p) => p !== end)
+    view.dateProperty = (start ?? end)?.id
+    view.endDateProperty = start && end ? end.id : undefined
   }
   if (type === 'gallery') {
     view.coverProperty = db.properties.find((p) => p.type === 'url')?.id

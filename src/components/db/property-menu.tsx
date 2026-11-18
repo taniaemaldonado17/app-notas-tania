@@ -86,6 +86,7 @@ export function removeProperty(db: DatabaseDef, propId: string): { properties: P
       sorts: v.sorts.filter((s) => s.propertyId !== propId),
       groupBy: v.groupBy === propId ? undefined : v.groupBy,
       dateProperty: v.dateProperty === propId ? undefined : v.dateProperty,
+      endDateProperty: v.endDateProperty === propId ? undefined : v.endDateProperty,
       coverProperty: v.coverProperty === propId ? undefined : v.coverProperty,
     })),
   }

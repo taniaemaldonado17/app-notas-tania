@@ -10,6 +10,7 @@ import { personLabel, useDb } from '@/components/db/db-context'
 import {
   filterOpsFor,
   getProperty,
+  makeView,
   newId,
   VIEW_TYPE_LABELS,
   type DatabaseDef,
@@ -347,7 +348,7 @@ function SortEditor({ db, sorts, onChange }: { db: DatabaseDef; sorts: Sort[]; o
   )
 }
 
-const VIEW_TYPES: ViewType[] = ['table', 'board', 'gallery', 'calendar', 'list']
+const VIEW_TYPES: ViewType[] = ['table', 'board', 'gallery', 'calendar', 'timeline', 'list']
 
 function ViewSettings({ db, view, onChange }: { db: DatabaseDef; view: ViewDef; onChange: (p: Partial<ViewDef>) => void }) {
   const groupable = db.properties.filter((p) => p.type === 'select' || p.type === 'status' || p.type === 'checkbox' || p.type === 'person')
@@ -398,6 +399,11 @@ function ViewSettings({ db, view, onChange }: { db: DatabaseDef; view: ViewDef; 
               if (type === 'board' && !view.groupBy) patch.groupBy = groupable[0]?.id
               if (type === 'calendar' && !view.dateProperty) patch.dateProperty = dates[0]?.id
               if (type === 'gallery' && !view.coverProperty) patch.coverProperty = urls[0]?.id
+              if (type === 'timeline' && !view.dateProperty) {
+                const v = makeView('timeline', db)
+                patch.dateProperty = v.dateProperty
+                patch.endDateProperty = v.endDateProperty
+              }
               onChange(patch)
             }}
             className={selectCls}
@@ -434,6 +440,34 @@ function ViewSettings({ db, view, onChange }: { db: DatabaseDef; view: ViewDef; 
               ))}
             </select>
           </label>
+        )}
+        {view.type === 'timeline' && (
+          <>
+            <label className="flex items-center gap-2 px-2 text-sm">
+              <span className="text-muted-foreground">Inicio</span>
+              <select value={view.dateProperty ?? ''} onChange={(e) => onChange({ dateProperty: e.target.value || undefined })} className={selectCls}>
+                <option value="">Elegí…</option>
+                {dates.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 px-2 text-sm">
+              <span className="text-muted-foreground">Fin</span>
+              <select value={view.endDateProperty ?? ''} onChange={(e) => onChange({ endDateProperty: e.target.value || undefined })} className={selectCls}>
+                <option value="">Sin fecha de fin</option>
+                {dates
+                  .filter((p) => p.id !== view.dateProperty)
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          </>
         )}
         {view.type === 'gallery' && (
           <label className="flex items-center gap-2 px-2 text-sm">

@@ -6,6 +6,7 @@ import {
   Copy,
   FileUp,
   GalleryHorizontalEnd,
+  GanttChart,
   KanbanSquare,
   List,
   MoreHorizontal,
@@ -27,6 +28,7 @@ import { ViewToolbar } from '@/components/db/view-toolbar'
 import { ImportDialog } from '@/components/db/import-dialog'
 import { TableView } from '@/components/db/table-view'
 import { BoardView, CalendarView, GalleryView, ListView } from '@/components/db/card-views'
+import { TimelineView } from '@/components/db/timeline-view'
 import { viewRows } from '@/lib/db-resolve'
 import {
   makeView,
@@ -45,6 +47,7 @@ export const VIEW_ICONS: Record<ViewType, React.ComponentType<{ className?: stri
   board: KanbanSquare,
   gallery: GalleryHorizontalEnd,
   calendar: CalendarIcon,
+  timeline: GanttChart,
   list: List,
 }
 
@@ -67,6 +70,8 @@ export function ViewBody({ db, view, search }: { db: DatabaseDef; view: ViewDef;
       return <GalleryView db={db} view={view} rows={rows} onNew={() => create({}, true)} />
     case 'calendar':
       return <CalendarView db={db} view={view} rows={rows} onNew={(v) => create(v, true)} />
+    case 'timeline':
+      return <TimelineView db={db} view={view} rows={rows} onNew={(v) => create(v, true)} />
     case 'list':
       return <ListView db={db} view={view} rows={rows} onNew={() => create({}, true)} />
     default:
