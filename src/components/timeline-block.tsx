@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { createReactBlockSpec } from '@blocknote/react'
 import { CalendarRange, ChevronLeft, ChevronRight, ListPlus, Plus, Trash2 } from 'lucide-react'
 import { personName, useEditorPeople } from '@/components/editor-people'
@@ -34,7 +35,8 @@ const todayNum = () => {
   const t = new Date()
   return Math.floor(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) / DAY)
 }
-const validIso = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
+// Years outside 2000–2099 are half-typed dates ("0002-…") or typos.
+const validIso = (v: unknown): v is string => typeof v === 'string' && /^20\d{2}-\d{2}-\d{2}$/.test(v)
 const shortDate = (iso: string) => {
   const [, m, d] = iso.split('-').map(Number)
   return `${d}/${m}`
@@ -140,7 +142,7 @@ function TimelineBlockView({ block, editor }: { block: TLBlock; editor: TLEditor
   const today = todayNum()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
-  const [editingDates, setEditingDates] = useState<string | null>(null)
+  const [editingDates, setEditingDates] = useState<{ id: string; rect: DOMRect } | null>(null)
   const [picking, setPicking] = useState(false)
   const [scrollLeft, setScrollLeft] = useState(0)
 
@@ -309,40 +311,25 @@ function TimelineBlockView({ block, editor }: { block: TLBlock; editor: TLEditor
                 ))}
               </select>
               <span className="tl-dates-cell">
-                <button type="button" className="tl-dates" disabled={!editable} onClick={() => setEditingDates(editingDates === it.id ? null : it.id)}>
+                <button
+                  type="button"
+                  className="tl-dates"
+                  disabled={!editable}
+                  onClick={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect()
+                    setEditingDates(editingDates?.id === it.id ? null : { id: it.id, rect: r })
+                  }}
+                >
                   {it.start ? `${shortDate(it.start)} → ${shortDate(it.end || it.start)}` : 'Sin fecha'}
                 </button>
-                {editingDates === it.id && (
-                  <span className="tl-date-pop">
-                    <label>
-                      Inicio
-                      <input
-                        type="date"
-                        value={it.start}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          if (!validIso(v)) return
-                          patch(it.id, { start: v, end: it.end && it.end >= v ? it.end : v })
-                        }}
-                      />
-                    </label>
-                    <label>
-                      Fin
-                      <input
-                        type="date"
-                        value={it.end}
-                        min={it.start || undefined}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          if (!validIso(v)) return
-                          patch(it.id, { end: v, start: it.start && it.start <= v ? it.start : v })
-                        }}
-                      />
-                    </label>
-                    <button type="button" className="primary" onClick={() => setEditingDates(null)}>
-                      Listo
-                    </button>
-                  </span>
+                {editingDates?.id === it.id && (
+                  <DatePopover
+                    anchor={editingDates.rect}
+                    start={it.start}
+                    end={it.end}
+                    onClose={() => setEditingDates(null)}
+                    onChange={(start, end) => patch(it.id, { start, end })}
+                  />
                 )}
               </span>
               {editable && (
@@ -454,6 +441,87 @@ function TimelineBlockView({ block, editor }: { block: TLBlock; editor: TLEditor
         </div>
       </div>
     </div>
+  )
+}
+
+/** Start/end pickers, floating above everything (the block clips its content). */
+function DatePopover({
+  anchor,
+  start,
+  end,
+  onChange,
+  onClose,
+}: {
+  anchor: DOMRect
+  start: string
+  end: string
+  onChange: (start: string, end: string) => void
+  onClose: () => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [s, setS] = useState(start)
+  const [e, setE] = useState(end)
+  useEffect(() => {
+    const away = (ev: MouseEvent) => {
+      if (ref.current && !ref.current.contains(ev.target as Node)) onClose()
+    }
+    const esc = (ev: KeyboardEvent) => ev.key === 'Escape' && onClose()
+    document.addEventListener('mousedown', away)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', away)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [onClose])
+
+  const HEIGHT = 170
+  const below = window.innerHeight - anchor.bottom > HEIGHT + 8
+  const style: React.CSSProperties = {
+    position: 'fixed',
+    left: Math.max(8, Math.min(anchor.right - 190, window.innerWidth - 198)),
+    top: below ? anchor.bottom + 4 : Math.max(8, anchor.top - HEIGHT - 4),
+    width: 190,
+  }
+
+  function commit(ns: string, ne: string) {
+    if (validIso(ns) && validIso(ne)) onChange(ns <= ne ? ns : ne, ns <= ne ? ne : ns)
+    else if (validIso(ns)) onChange(ns, ns)
+  }
+
+  return createPortal(
+    <div ref={ref} className="tl-date-pop" style={style} onMouseDown={(ev) => ev.stopPropagation()}>
+      <label>
+        Inicio
+        <input
+          type="date"
+          value={s}
+          onChange={(ev) => {
+            setS(ev.target.value)
+            if (validIso(ev.target.value)) {
+              const ne = e && e >= ev.target.value ? e : ev.target.value
+              setE(ne)
+              commit(ev.target.value, ne)
+            }
+          }}
+        />
+      </label>
+      <label>
+        Fin
+        <input
+          type="date"
+          value={e}
+          min={validIso(s) ? s : undefined}
+          onChange={(ev) => {
+            setE(ev.target.value)
+            if (validIso(ev.target.value)) commit(validIso(s) && s <= ev.target.value ? s : ev.target.value, ev.target.value)
+          }}
+        />
+      </label>
+      <button type="button" className="primary" onClick={onClose}>
+        Listo
+      </button>
+    </div>,
+    document.body
   )
 }
 

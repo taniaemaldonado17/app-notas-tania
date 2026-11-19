@@ -376,10 +376,7 @@
 .tl-dates { width: 100%; padding: 2px 4px; border-radius: 4px; text-align: left; font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
 .tl-dates:not(:disabled):hover { background: var(--accent); color: var(--foreground); }
 .tl-date-pop {
-  position: absolute;
-  z-index: 20;
-  top: 26px;
-  right: 0;
+  z-index: 60;
   display: flex;
   flex-direction: column;
   gap: 6px;
