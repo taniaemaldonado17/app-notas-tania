@@ -183,7 +183,7 @@ function Dashboard({ databases, layout }: { databases: DatabaseDef[]; layout: Pa
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-8 px-4 pb-16 sm:px-6">
+    <div className="mx-auto w-full max-w-[1800px] space-y-8 px-4 pb-16 sm:px-8">
       {layout.sections.map((s, i) => (
         <SectionFrame
           key={s.id}

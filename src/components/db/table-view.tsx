@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { FileText, MessageSquare, Plus } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { FileText, GripVertical, MessageSquare, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 import { useDb } from '@/components/db/db-context'
 import { PropertyCell } from '@/components/db/property-value'
 import { AddPropertyButton, PropertyIcon, PropertyMenu } from '@/components/db/property-menu'
@@ -42,6 +43,9 @@ export function TableView({
 }) {
   const { ws, openRow } = useDb()
   const [editingTitle, setEditingTitle] = useState<string | null>(null)
+  /** Row being dragged and the index it would land at. */
+  const [drag, setDrag] = useState<{ id: string; at: number } | null>(null)
+  const rowsRef = useRef<HTMLDivElement>(null)
   /** Width being dragged right now (saved when the mouse is released). */
   const [live, setLive] = useState<{ id: string; w: number } | null>(null)
   const titleProp = getProperty(db, TITLE_PROPERTY_ID) ?? db.properties.find((p) => p.type === 'title')!
@@ -83,6 +87,44 @@ export function TableView({
       document.body.classList.remove('col-resizing')
       setLive(null)
       if (w !== w0) saveWidth(p.id, w)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  /** Drag a row by its grip to change the manual order. */
+  function startRowDrag(e: React.PointerEvent, row: DbRow) {
+    if (e.button !== 0) return
+    e.preventDefault()
+    if (view.sorts.length > 0) {
+      toast('Esta vista está ordenada por una columna', { description: 'Quitá el orden (en "Ordenar") para mover filas a mano.' })
+      return
+    }
+    const from = rows.findIndex((r) => r.id === row.id)
+    let at = from
+    const indexAt = (y: number) => {
+      const els = rowsRef.current?.querySelectorAll<HTMLElement>('[data-row-id]') ?? []
+      let i = 0
+      for (const el of els) {
+        const b = el.getBoundingClientRect()
+        if (y > b.top + b.height / 2) i++
+      }
+      return i
+    }
+    document.body.classList.add('row-dragging')
+    setDrag({ id: row.id, at })
+    const move = (ev: PointerEvent) => {
+      at = indexAt(ev.clientY)
+      setDrag({ id: row.id, at })
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      document.body.classList.remove('row-dragging')
+      setDrag(null)
+      // Dropping on itself or right below itself changes nothing.
+      if (at === from || at === from + 1) return
+      void ws.moveRow(row.id, rows[at]?.id ?? null)
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -140,9 +182,30 @@ export function TableView({
         </div>
 
         {/* Rows */}
-        {rows.map((row) => (
-          <div key={row.id} className="group flex min-h-9 border-b border-border hover:bg-accent/30">
-            <div style={{ width: titleWidth }} className="sticky left-0 z-10 flex shrink-0 items-center gap-1 bg-background px-2 group-hover:bg-[color-mix(in_srgb,var(--accent)_30%,var(--background))]">
+        <div ref={rowsRef}>
+        {rows.map((row, i) => (
+          <div
+            key={row.id}
+            data-row-id={row.id}
+            className={cn(
+              'group relative flex min-h-9 border-b border-border hover:bg-accent/30',
+              drag?.id === row.id && 'opacity-50'
+            )}
+          >
+            {drag && drag.at === i && <div className="pointer-events-none absolute inset-x-0 -top-px z-30 h-0.5 bg-primary" />}
+            {drag && drag.at === rows.length && i === rows.length - 1 && (
+              <div className="pointer-events-none absolute inset-x-0 -bottom-px z-30 h-0.5 bg-primary" />
+            )}
+            <div style={{ width: titleWidth }} className="sticky left-0 z-10 flex shrink-0 items-center gap-1 bg-background pl-0.5 pr-2 group-hover:bg-[color-mix(in_srgb,var(--accent)_30%,var(--background))]">
+              <span
+                role="button"
+                aria-label="Arrastrar para mover la fila"
+                title="Arrastrá para mover la fila"
+                onPointerDown={(e) => startRowDrag(e, row)}
+                className="flex h-6 w-4 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-accent active:cursor-grabbing group-hover:opacity-100"
+              >
+                <GripVertical className="h-3.5 w-3.5" />
+              </span>
               <span className="w-5 shrink-0 text-center text-sm">
                 {row.icon || <FileText className="mx-auto h-3.5 w-3.5 text-muted-foreground" />}
               </span>
@@ -180,6 +243,7 @@ export function TableView({
             <div className="w-12 shrink-0 border-l border-border" />
           </div>
         ))}
+        </div>
 
         {/* New row */}
         <button

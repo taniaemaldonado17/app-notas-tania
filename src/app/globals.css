@@ -959,3 +959,5 @@ body.col-resizing * {
   cursor: col-resize !important;
   user-select: none !important;
 }
+
+body.row-dragging, body.row-dragging * { cursor: grabbing !important; user-select: none; }

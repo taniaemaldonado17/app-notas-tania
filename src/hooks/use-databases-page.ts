@@ -320,16 +320,69 @@ export function useDatabasesPage(pageId: string | null) {
     [mapDatabases, commit]
   )
 
+  /**
+   * Moves a row to just before `beforeId` (or to the end when null), in the
+   * manual order of its database. Uses a position between the neighbours;
+   * if there is no room (equal positions), renumbers the whole database.
+   */
+  const moveRow = useCallback(
+    async (rowId: string, beforeId: string | null) => {
+      const before = pageRef.current
+      const database = before?.databases?.find((d) => d.rows.some((r) => r.id === rowId))
+      if (!database) return
+      const ordered = [...database.rows]
+        .sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt))
+        .filter((r) => r.id !== rowId)
+      let at = beforeId ? ordered.findIndex((r) => r.id === beforeId) : ordered.length
+      if (at < 0) at = ordered.length
+      const prev = ordered[at - 1]
+      const next = ordered[at]
+
+      const updates = new Map<string, number>()
+      if (!prev && !next) updates.set(rowId, 0)
+      else if (!prev) updates.set(rowId, next.position - 1)
+      else if (!next) updates.set(rowId, prev.position + 1)
+      else if (next.position - prev.position > 1e-6) updates.set(rowId, (prev.position + next.position) / 2)
+      else {
+        const all = [...ordered.slice(0, at), { id: rowId } as DbRow, ...ordered.slice(at)]
+        all.forEach((r, i) => {
+          if (r.id === rowId || r.position !== i) updates.set(r.id, i)
+        })
+      }
+
+      mapDatabases((dbs) =>
+        dbs.map((d) =>
+          d.id === database.id
+            ? { ...d, rows: d.rows.map((r) => (updates.has(r.id) ? { ...r, position: updates.get(r.id)! } : r)) }
+            : d
+        )
+      )
+      try {
+        await track(Promise.all([...updates].map(([id, position]) => api.updateRow(id, { position }))))
+      } catch {
+        if (before) commit(before)
+        toast.error('No se pudo mover la fila')
+      }
+    },
+    [mapDatabases, commit]
+  )
+
   const duplicateRow = useCallback(
     async (rowId: string) => {
-      const source = pageRef.current?.databases?.flatMap((d) => d.rows).find((r) => r.id === rowId)
-      if (!source) return null
-      return createRow(source.databaseId, {
+      const database = pageRef.current?.databases?.find((d) => d.rows.some((r) => r.id === rowId))
+      const source = database?.rows.find((r) => r.id === rowId)
+      if (!database || !source) return null
+      const ordered = [...database.rows].sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt))
+      const after = ordered[ordered.findIndex((r) => r.id === rowId) + 1] ?? null
+      const copy = await createRow(source.databaseId, {
         title: source.title ? `${source.title} (copia)` : '',
         values: source.values,
       })
+      // Place the copy right below the original, not at the end.
+      if (copy && after) await moveRow(copy.id, after.id)
+      return copy
     },
-    [createRow]
+    [createRow, moveRow]
   )
 
   const setRowCommentCount = useCallback(
@@ -354,6 +407,7 @@ export function useDatabasesPage(pageId: string | null) {
     saveRowContent,
     deleteRow,
     duplicateRow,
+    moveRow,
     setRowCommentCount,
   }
 }
