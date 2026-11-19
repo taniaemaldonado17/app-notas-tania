@@ -305,6 +305,136 @@
 .callout-emoji:not(:disabled):hover { background: var(--accent); }
 .callout-content { flex: 1; min-width: 0; }
 
+/* ---------- "Cronograma" block ---------- */
+.tl-block {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 13px;
+  overflow: hidden;
+}
+.tl-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.tl-toolbar button,
+.tl-picker-actions button,
+.tl-date-pop button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.tl-toolbar button:hover,
+.tl-toolbar button[data-active],
+.tl-picker-actions button:hover { background: var(--accent); color: var(--foreground); }
+.tl-title { display: inline-flex; align-items: center; gap: 6px; margin-right: 8px; font-weight: 600; }
+.tl-seg { display: inline-flex; padding: 2px; border-radius: 7px; background: var(--muted); }
+.tl-seg button { height: 22px; }
+.tl-seg button[data-active] { background: var(--background); color: var(--foreground); box-shadow: 0 1px 2px rgb(0 0 0 / 0.15); }
+.tl-actions { display: inline-flex; gap: 2px; margin-left: auto; }
+.tl-grid { display: flex; }
+.tl-left { flex: none; width: min(380px, 48%); border-right: 1px solid var(--border); }
+.tl-right { flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; }
+.tl-head { position: relative; height: 40px; border-bottom: 1px solid var(--border); font-size: 11px; color: var(--muted-foreground); }
+.tl-left-head { display: grid; grid-template-columns: 1fr 78px 92px; align-items: end; gap: 4px; padding: 0 30px 6px 30px; }
+.tl-month { position: absolute; top: 4px; padding-left: 4px; font-weight: 600; white-space: nowrap; text-transform: capitalize; }
+.tl-day { position: absolute; bottom: 4px; padding-left: 3px; font-size: 10px; white-space: nowrap; }
+.tl-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px 1fr 78px 92px 20px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px 0 8px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+}
+.tl-row .tl-del { opacity: 0; color: var(--muted-foreground); display: inline-flex; justify-content: center; }
+.tl-row:hover .tl-del { opacity: 1; }
+.tl-name { min-width: 0; padding: 2px 4px; border-radius: 4px; background: transparent; font-size: 13px; }
+.tl-name:focus { outline: 1px solid var(--ring); background: var(--background); }
+.tl-name[data-done] { text-decoration: line-through; color: var(--muted-foreground); }
+.tl-person {
+  min-width: 0;
+  padding: 2px;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.tl-person option { background: var(--popover); color: var(--popover-foreground); }
+.tl-dates-cell { position: relative; }
+.tl-dates { width: 100%; padding: 2px 4px; border-radius: 4px; text-align: left; font-size: 12px; color: var(--muted-foreground); white-space: nowrap; }
+.tl-dates:not(:disabled):hover { background: var(--accent); color: var(--foreground); }
+.tl-date-pop {
+  position: absolute;
+  z-index: 20;
+  top: 26px;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--popover);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+}
+.tl-date-pop label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--muted-foreground); }
+.tl-date-pop input { padding: 3px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--background); color: var(--foreground); font-size: 13px; color-scheme: light dark; }
+.tl-date-pop button.primary,
+.tl-picker-actions button.primary { justify-content: center; background: var(--primary); color: var(--primary-foreground); }
+.tl-picker-actions button.primary:disabled { opacity: 0.5; }
+.tl-empty { padding: 12px; color: var(--muted-foreground); font-size: 12px; }
+.tl-canvas { position: relative; }
+.tl-weekend { position: absolute; top: 0; bottom: 0; background: color-mix(in oklab, var(--muted-foreground) 7%, transparent); }
+.tl-vline { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in oklab, var(--border) 60%, transparent); }
+.tl-today { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: #E0584C; z-index: 3; }
+.tl-bar-row { position: absolute; left: 0; right: 0; height: 34px; }
+.tl-bar {
+  position: absolute;
+  top: 7px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  border-radius: 5px;
+  background: #4C8BF5;
+  color: #fff;
+  font-size: 11px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  z-index: 2;
+}
+.tl-bar[data-state="now"] { background: #D39E4F; }
+.tl-bar[data-state="late"] { background: #E0584C; }
+.tl-bar[data-state="done"] { background: #5FB88A; }
+.tl-bar[data-dragging] { cursor: grabbing; box-shadow: 0 4px 12px rgb(0 0 0 / 0.3); }
+.tl-bar-label { flex: 1; min-width: 0; padding: 0 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tl-handle { flex: none; width: 6px; align-self: stretch; cursor: ew-resize; }
+.tl-handle.left { border-radius: 5px 0 0 5px; }
+.tl-handle.right { border-radius: 0 5px 5px 0; }
+.tl-bar:hover .tl-handle { background: rgb(255 255 255 / 0.35); }
+.tl-late { position: absolute; top: 9px; font-size: 11px; color: #E0584C; white-space: nowrap; }
+.tl-drag-dates { position: absolute; top: -4px; font-size: 10px; color: var(--muted-foreground); white-space: nowrap; }
+.tl-undated { position: absolute; padding: 1px 8px; border: 1px dashed var(--border); border-radius: 5px; font-size: 11px; color: var(--muted-foreground); }
+.tl-undated:hover { background: var(--accent); color: var(--foreground); }
+.tl-picker { padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--muted); }
+.tl-picker p { margin: 0 0 6px; font-size: 12px; color: var(--muted-foreground); }
+.tl-picker-list { display: flex; flex-direction: column; gap: 2px; max-height: 220px; overflow-y: auto; }
+.tl-picker-list label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.tl-picker-list [data-done] { text-decoration: line-through; color: var(--muted-foreground); }
+.tl-picker-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+
 /* ---------- @mentions ---------- */
 .mention {
   padding: 0 3px;

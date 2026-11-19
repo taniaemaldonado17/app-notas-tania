@@ -15,19 +15,21 @@ import {
 } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
 import '@blocknote/mantine/style.css'
-import { Code2, GalleryHorizontal, Lightbulb } from 'lucide-react'
+import { CalendarRange, Code2, GalleryHorizontal, Lightbulb } from 'lucide-react'
 import type { DocBlock } from '@/lib/blocks'
 import { fetchShare, uploadFile } from '@/lib/api'
 import { EmbedBlock } from '@/components/embed-block'
 import { ImageRowBlock } from '@/components/image-row-block'
 import { Mention } from '@/components/mention-inline'
 import { CalloutBlock } from '@/components/callout-block'
+import { TimelineBlock } from '@/components/timeline-block'
+import { EditorPeopleContext } from '@/components/editor-people'
 import { BlockHandleMenu, blockTypeItems } from '@/components/block-handle-menu'
 
 export type MentionPerson = { id: string; name: string | null; email: string }
 
 const schema = BlockNoteSchema.create({
-  blockSpecs: { ...defaultBlockSpecs, embed: EmbedBlock(), imageRow: ImageRowBlock(), callout: CalloutBlock() },
+  blockSpecs: { ...defaultBlockSpecs, embed: EmbedBlock(), imageRow: ImageRowBlock(), callout: CalloutBlock(), timeline: TimelineBlock() },
   inlineContentSpecs: { ...defaultInlineContentSpecs, mention: Mention },
 })
 
@@ -129,6 +131,14 @@ function slashItems(editor: Editor) {
   return [
     ...items,
     {
+      title: 'Cronograma',
+      subtext: 'Tareas con fechas en barras (Gantt), con responsable y retrasos',
+      aliases: ['cronograma', 'gantt', 'timeline', 'plazos', 'fechas', 'planificacion', 'calendario', 'obra'],
+      group: 'Insertar',
+      icon: <CalendarRange size={18} />,
+      onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'timeline' } as never),
+    },
+    {
       title: 'Insertar HTML o web',
       subtext: 'Mostrá una página web, un mapa, un video o tu propio código HTML',
       aliases: ['html', 'embed', 'insertar', 'web', 'iframe', 'codigo', 'pagina'],
@@ -208,6 +218,7 @@ export default function RichEditor({ initialBlocks, onChange, onReady, people, p
   }
 
   return (
+    <EditorPeopleContext.Provider value={mentionable}>
     <div onKeyDownCapture={onKeyDownCapture} className="contents">
     <BlockNoteView
       editor={editor}
@@ -237,5 +248,6 @@ export default function RichEditor({ initialBlocks, onChange, onReady, people, p
       />
     </BlockNoteView>
     </div>
+    </EditorPeopleContext.Provider>
   )
 }
