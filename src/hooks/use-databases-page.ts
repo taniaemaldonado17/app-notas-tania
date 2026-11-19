@@ -367,6 +367,44 @@ export function useDatabasesPage(pageId: string | null) {
     [mapDatabases, commit]
   )
 
+  /**
+   * Makes `orderedIds` (rows of one database as a view shows them) the manual
+   * order. Rows not in the list keep their places; only the slots of the
+   * listed rows are reordered.
+   */
+  const reorderRows = useCallback(
+    async (databaseId: string, orderedIds: string[]) => {
+      const before = pageRef.current
+      const database = before?.databases?.find((d) => d.id === databaseId)
+      if (!database) return
+      const listed = new Set(orderedIds)
+      const byId = new Map(database.rows.map((r) => [r.id, r]))
+      const queue = orderedIds.filter((id) => byId.has(id))
+      const full = [...database.rows]
+        .sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt))
+        .map((r) => (listed.has(r.id) ? byId.get(queue.shift()!)! : r))
+      const updates = new Map<string, number>()
+      full.forEach((r, i) => {
+        if (r.position !== i) updates.set(r.id, i)
+      })
+      if (updates.size === 0) return
+      mapDatabases((dbs) =>
+        dbs.map((d) =>
+          d.id === databaseId
+            ? { ...d, rows: d.rows.map((r) => (updates.has(r.id) ? { ...r, position: updates.get(r.id)! } : r)) }
+            : d
+        )
+      )
+      try {
+        await track(Promise.all([...updates].map(([id, position]) => api.updateRow(id, { position }))))
+      } catch {
+        if (before) commit(before)
+        toast.error('No se pudo mover la fila')
+      }
+    },
+    [mapDatabases, commit]
+  )
+
   const duplicateRow = useCallback(
     async (rowId: string) => {
       const database = pageRef.current?.databases?.find((d) => d.rows.some((r) => r.id === rowId))
@@ -408,6 +446,7 @@ export function useDatabasesPage(pageId: string | null) {
     deleteRow,
     duplicateRow,
     moveRow,
+    reorderRows,
     setRowCommentCount,
   }
 }

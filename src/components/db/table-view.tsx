@@ -96,10 +96,6 @@ export function TableView({
   function startRowDrag(e: React.PointerEvent, row: DbRow) {
     if (e.button !== 0) return
     e.preventDefault()
-    if (view.sorts.length > 0) {
-      toast('Esta vista está ordenada por una columna', { description: 'Quitá el orden (en "Ordenar") para mover filas a mano.' })
-      return
-    }
     const from = rows.findIndex((r) => r.id === row.id)
     let at = from
     const indexAt = (y: number) => {
@@ -124,7 +120,26 @@ export function TableView({
       setDrag(null)
       // Dropping on itself or right below itself changes nothing.
       if (at === from || at === from + 1) return
-      void ws.moveRow(row.id, rows[at]?.id ?? null)
+      if (view.sorts.length === 0) {
+        void ws.moveRow(row.id, rows[at]?.id ?? null)
+        return
+      }
+      // The view is sorted by a column, so a manual position would not show.
+      // Offer to drop the sort, keeping the order on screen plus this move.
+      const ids = rows.map((r) => r.id).filter((id) => id !== row.id)
+      ids.splice(at > from ? at - 1 : at, 0, row.id)
+      const sortNames = view.sorts.map((s) => getProperty(db, s.propertyId)?.name).filter(Boolean).join(', ')
+      toast(`Esta tabla está ordenada por ${sortNames || 'una columna'}`, {
+        description: 'Para mover filas a mano hay que quitar ese orden. Se mantiene el orden que ves ahora.',
+        duration: 10000,
+        action: {
+          label: 'Quitar orden y mover',
+          onClick: () => {
+            ws.updateDatabase(db.id, { views: db.views.map((v) => (v.id === view.id ? { ...v, sorts: [] } : v)) })
+            void ws.reorderRows(db.id, ids)
+          },
+        },
+      })
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
