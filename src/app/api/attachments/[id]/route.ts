@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { saveVersionBeforeChange } from '@/lib/versions'
 import { db } from '@/lib/db'
 import { accessiblePageWhere, getAuthUserId } from '@/lib/auth-helpers'
 
@@ -9,12 +10,12 @@ import { accessiblePageWhere, getAuthUserId } from '@/lib/auth-helpers'
 async function verifyAttachmentOwnership(
   userId: string,
   attachmentId: string
-): Promise<{ id: string; cardId: string } | null> {
+): Promise<{ id: string; cardId: string; pageId: string } | null> {
   const att = await db.attachment.findFirst({
     where: { id: attachmentId, card: { column: { page: accessiblePageWhere(userId) } } },
-    select: { id: true, cardId: true },
+    select: { id: true, cardId: true, card: { select: { column: { select: { pageId: true } } } } },
   })
-  return att
+  return att ? { id: att.id, cardId: att.cardId, pageId: att.card.column.pageId } : null
 }
 
 export async function PATCH(
@@ -31,6 +32,7 @@ export async function PATCH(
   if (!att) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
+  await saveVersionBeforeChange(att.pageId, userId)
 
   try {
     const body = await req.json()
@@ -66,6 +68,7 @@ export async function DELETE(
   if (!att) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
+  await saveVersionBeforeChange(att.pageId, userId, { force: true })
 
   await db.attachment.delete({ where: { id } })
   return NextResponse.json({ ok: true })

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { saveVersionBeforeChange } from '@/lib/versions'
 import { db } from '@/lib/db'
 import { getAuthUserId, verifyPageOwnership } from '@/lib/auth-helpers'
 
@@ -22,6 +23,7 @@ export async function POST(req: Request) {
     if (!owns) {
       return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
     }
+    await saveVersionBeforeChange(pageId, userId)
 
     const lastPos = await db.column.aggregate({
       where: { pageId },

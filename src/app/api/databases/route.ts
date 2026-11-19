@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { saveVersionBeforeChange } from '@/lib/versions'
 import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { canAccessPage, getAuthUserId } from '@/lib/auth-helpers'
@@ -18,6 +19,7 @@ export async function POST(req: Request) {
     if (!pageId || !(await canAccessPage(userId, pageId))) {
       return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
     }
+    await saveVersionBeforeChange(pageId, userId)
 
     const last = await db.database.aggregate({ where: { pageId }, _max: { position: true } })
     const blank = blankDatabase(title)

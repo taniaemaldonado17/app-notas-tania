@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { saveVersionBeforeChange } from '@/lib/versions'
 import { db } from '@/lib/db'
 import { getAuthUserId, verifyCardOwnership } from '@/lib/auth-helpers'
 
@@ -18,6 +19,7 @@ export async function POST(
   if (!card) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
+  await saveVersionBeforeChange(card.pageId, userId)
 
   try {
     const body = await req.json()

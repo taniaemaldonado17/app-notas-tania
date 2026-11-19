@@ -8,6 +8,7 @@ import { SearchBox } from '@/components/search-box'
 import { UserMenu } from '@/components/user-menu'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { cn } from '@/lib/utils'
+import { VersionHistoryButton } from '@/components/version-history'
 import type { Page } from '@/lib/types'
 
 /** Stored in Page.coverUrl when the user removed the cover entirely. */
@@ -20,9 +21,11 @@ type Props = {
   onShare?: () => void
   /** Show the "filter cards of this page" box (Kanban pages only). */
   showFilter?: boolean
+  /** Called after a version was restored (to reload the page). */
+  onRestored?: () => void
 }
 
-export function TopBar({ page, memberCount = 0, onShare, showFilter = true }: Props) {
+export function TopBar({ page, memberCount = 0, onShare, showFilter = true, onRestored }: Props) {
   const sidebarOpen = useWorkspace((s) => s.sidebarOpen)
   const setSidebarOpen = useWorkspace((s) => s.setSidebarOpen)
 
@@ -76,6 +79,7 @@ export function TopBar({ page, memberCount = 0, onShare, showFilter = true }: Pr
             )}
           </button>
         )}
+        {page && <VersionHistoryButton pageId={page.id} onRestored={onRestored} />}
         <UserMenu />
       </div>
     </header>

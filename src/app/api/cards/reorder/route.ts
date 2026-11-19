@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { saveVersionsBeforeChange } from '@/lib/versions'
 import { db } from '@/lib/db'
 import { canAccessPages, getAuthUserId } from '@/lib/auth-helpers'
 
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
     if (!(await canAccessPages(userId, pageIds))) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
+    await saveVersionsBeforeChange(pageIds, userId)
 
     await db.$transaction(
       moves.map((m) =>

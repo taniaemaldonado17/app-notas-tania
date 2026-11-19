@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { saveVersionBeforeChange } from '@/lib/versions'
 import { db } from '@/lib/db'
 import { getAuthUserId } from '@/lib/auth-helpers'
 import { findAccessibleDatabase, rowSelect, sanitizeValues, serializeRow } from '@/lib/db-server'
@@ -13,9 +14,11 @@ export async function POST(
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
   const { id } = await params
-  if (!(await findAccessibleDatabase(userId, id))) {
+  const found = await findAccessibleDatabase(userId, id)
+  if (!found) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
+  await saveVersionBeforeChange(found.pageId, userId)
 
   try {
     const body = await req.json().catch(() => ({}))

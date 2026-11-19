@@ -522,3 +522,31 @@ export async function getCalendarFeed(): Promise<{ path: string }> {
 export async function resetCalendarFeed(): Promise<{ path: string }> {
   return jsonFetch(`${API_BASE}/calendar`, { method: 'POST' })
 }
+
+/* ---------------------------- Version history ---------------------------- */
+
+export type VersionInfo = { id: string; createdAt: string; editedBy: string | null }
+
+export async function fetchVersions(pageId: string): Promise<VersionInfo[]> {
+  const data = await jsonFetch<{ versions: VersionInfo[] }>(`${API_BASE}/pages/${pageId}/versions`)
+  return data.versions
+}
+
+export async function fetchVersion(
+  pageId: string,
+  versionId: string
+): Promise<{ version: import('@/lib/versions').PageSnapshot; current: import('@/lib/versions').PageSnapshot | null }> {
+  return jsonFetch(`${API_BASE}/pages/${pageId}/versions/${versionId}`)
+}
+
+/** Restores a whole version, or only some rows/cards of it. */
+export async function restoreVersion(
+  pageId: string,
+  versionId: string,
+  only?: { rowIds?: string[]; cardIds?: string[] }
+): Promise<{ restored: number; skipped: number }> {
+  return jsonFetch(`${API_BASE}/pages/${pageId}/versions/${versionId}`, {
+    method: 'POST',
+    body: JSON.stringify(only ?? {}),
+  })
+}

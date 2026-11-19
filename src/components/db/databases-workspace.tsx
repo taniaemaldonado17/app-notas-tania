@@ -117,7 +117,7 @@ export function DatabasesWorkspace({ pageId, memberCount, onShare, onPageMetaCha
   return (
     <DbProvider value={value}>
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar page={page ?? null} memberCount={memberCount} onShare={onShare} showFilter={false} />
+        <TopBar page={page ?? null} memberCount={memberCount} onShare={onShare} showFilter={false} onRestored={() => void ws.refresh()} />
         <main className="flex flex-1 flex-col">
           {ws.error ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 py-20 text-center text-sm text-muted-foreground">

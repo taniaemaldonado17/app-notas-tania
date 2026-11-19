@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { saveVersionBeforeChange } from '@/lib/versions'
 import { db } from '@/lib/db'
 import { getAuthUserId, verifyColumnOwnership } from '@/lib/auth-helpers'
 
@@ -16,6 +17,7 @@ export async function PATCH(
   if (!column) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
+  await saveVersionBeforeChange(column.pageId, userId)
 
   try {
     const body = await req.json()
@@ -55,6 +57,7 @@ export async function DELETE(
   if (!column) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
+  await saveVersionBeforeChange(column.pageId, userId, { force: true })
 
   const url = new URL(req.url)
   const keepCards = url.searchParams.get('keepCards') === '1'

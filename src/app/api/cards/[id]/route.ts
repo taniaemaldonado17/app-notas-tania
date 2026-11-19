@@ -1,4 +1,5 @@
 import { after, NextResponse } from 'next/server'
+import { saveVersionBeforeChange } from '@/lib/versions'
 import { db } from '@/lib/db'
 import { getAuthUserId, verifyCardOwnership, verifyColumnOwnership } from '@/lib/auth-helpers'
 import { cardInclude } from '@/lib/card-include'
@@ -36,6 +37,7 @@ export async function PATCH(
   if (!card) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
+  await saveVersionBeforeChange(card.pageId, userId)
 
   try {
     const body = await req.json()
@@ -121,6 +123,7 @@ export async function DELETE(
   if (!card) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
+  await saveVersionBeforeChange(card.pageId, userId, { force: true })
 
   await db.card.delete({ where: { id } })
   return NextResponse.json({ ok: true })

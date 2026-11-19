@@ -376,7 +376,7 @@ function Workspace({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <TopBar page={page ?? null} memberCount={memberCount} onShare={onShare} />
+      <TopBar page={page ?? null} memberCount={memberCount} onShare={onShare} onRestored={() => void workspace.refresh()} />
 
       <main className="flex flex-1 flex-col">
         {workspace.error ? (

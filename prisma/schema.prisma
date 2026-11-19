@@ -57,6 +57,7 @@ model Page {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   columns     Column[]
+  versions    PageVersion[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -275,4 +276,19 @@ model DbRow {
   updatedAt   DateTime  @updatedAt
 
   @@index([databaseId])
+}
+
+// Saved state of a whole page (databases + rows, or board columns + cards),
+// taken before changes so the page can be looked back at and restored.
+model PageVersion {
+  id        String   @id @default(cuid())
+  pageId    String
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  // Who made the change that came right after this state
+  userId    String?
+  hash      String
+  snapshot  Json
+  createdAt DateTime @default(now())
+
+  @@index([pageId, createdAt])
 }

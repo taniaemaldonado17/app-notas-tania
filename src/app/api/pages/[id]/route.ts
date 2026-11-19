@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { saveVersionBeforeChange } from '@/lib/versions'
 import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { getAuthUserId, isPageOwner, verifyPageOwnership } from '@/lib/auth-helpers'
@@ -77,6 +78,7 @@ export async function PATCH(
   if (!owns) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
+  await saveVersionBeforeChange(id, userId)
 
   try {
     const body = await req.json()

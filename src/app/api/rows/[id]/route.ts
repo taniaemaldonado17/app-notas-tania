@@ -1,4 +1,5 @@
 import { after, NextResponse } from 'next/server'
+import { saveVersionBeforeChange } from '@/lib/versions'
 import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { getAuthUserId } from '@/lib/auth-helpers'
@@ -62,6 +63,7 @@ export async function PATCH(
   if (!found) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
+  await saveVersionBeforeChange(found.database.pageId, userId)
 
   try {
     const body = await req.json()
@@ -132,9 +134,11 @@ export async function DELETE(
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
   const { id } = await params
-  if (!(await findAccessibleRow(userId, id))) {
+  const found = await findAccessibleRow(userId, id)
+  if (!found) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
+  await saveVersionBeforeChange(found.database.pageId, userId, { force: true })
   await db.dbRow.delete({ where: { id } })
   return NextResponse.json({ ok: true })
 }

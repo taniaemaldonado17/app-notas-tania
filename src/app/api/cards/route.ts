@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { saveVersionBeforeChange } from '@/lib/versions'
 import { db } from '@/lib/db'
 import { getAuthUserId, verifyColumnOwnership } from '@/lib/auth-helpers'
 import { cardInclude } from '@/lib/card-include'
@@ -24,6 +25,7 @@ export async function POST(req: Request) {
     if (!column) {
       return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
     }
+    await saveVersionBeforeChange(column.pageId, userId)
 
     const lastPos = await db.card.aggregate({
       where: { columnId },

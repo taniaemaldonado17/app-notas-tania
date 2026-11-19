@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { saveVersionBeforeChange } from '@/lib/versions'
 import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { canAccessPage, getAuthUserId } from '@/lib/auth-helpers'
@@ -56,6 +57,7 @@ export async function POST(req: Request) {
       if (!found) {
         return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
       }
+      await saveVersionBeforeChange(found.pageId, userId)
       databaseId = found.id
       const current = await db.database.findUnique({ where: { id: databaseId }, select: { views: true } })
       const addToViews: string[] = Array.isArray(body?.addToViews)
@@ -81,6 +83,7 @@ export async function POST(req: Request) {
       if (!pageId || !(await canAccessPage(userId, pageId))) {
         return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
       }
+      await saveVersionBeforeChange(pageId, userId)
       const title = (body?.title ?? '').toString().trim().slice(0, 200) || 'Base importada'
       const icon = typeof body?.icon === 'string' && body.icon ? body.icon.slice(0, 16) : '📥'
       const views: ViewDef[] = [makeView('table', { properties }, 'Tabla')]

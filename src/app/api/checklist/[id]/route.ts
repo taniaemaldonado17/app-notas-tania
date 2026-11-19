@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { saveVersionBeforeChange } from '@/lib/versions'
 import { db } from '@/lib/db'
 import { accessiblePageWhere, getAuthUserId } from '@/lib/auth-helpers'
 
@@ -9,12 +10,12 @@ import { accessiblePageWhere, getAuthUserId } from '@/lib/auth-helpers'
 async function verifyChecklistOwnership(
   userId: string,
   itemId: string
-): Promise<{ id: string; cardId: string } | null> {
+): Promise<{ id: string; cardId: string; pageId: string } | null> {
   const item = await db.checklistItem.findFirst({
     where: { id: itemId, card: { column: { page: accessiblePageWhere(userId) } } },
-    select: { id: true, cardId: true },
+    select: { id: true, cardId: true, card: { select: { column: { select: { pageId: true } } } } },
   })
-  return item
+  return item ? { id: item.id, cardId: item.cardId, pageId: item.card.column.pageId } : null
 }
 
 export async function PATCH(
@@ -31,6 +32,7 @@ export async function PATCH(
   if (!item) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
+  await saveVersionBeforeChange(item.pageId, userId)
 
   try {
     const body = await req.json()
@@ -64,6 +66,7 @@ export async function DELETE(
   if (!item) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
+  await saveVersionBeforeChange(item.pageId, userId, { force: true })
 
   await db.checklistItem.delete({ where: { id } })
   return NextResponse.json({ ok: true })
