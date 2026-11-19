@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUserId, verifyCardOwnership, verifyColumnOwnership } from '@/lib/auth-helpers'
 import { cardInclude } from '@/lib/card-include'
+import { appOrigin, notifyNewMentions } from '@/lib/mentions'
 
 export async function PATCH(
   req: Request,
@@ -51,11 +52,28 @@ export async function PATCH(
       data.columnId = body.columnId
     }
 
+    const before =
+      data.description !== undefined
+        ? (await db.card.findUnique({ where: { id }, select: { description: true } }))?.description
+        : undefined
     const updated = await db.card.update({
       where: { id },
       data,
       include: cardInclude,
     })
+    if (data.description !== undefined && data.description?.includes('"mention"')) {
+      const origin = appOrigin(req)
+      after(() =>
+        notifyNewMentions({
+          actorId: userId,
+          pageId: card.pageId,
+          before,
+          after: data.description,
+          itemTitle: updated.title,
+          link: `${origin}/?page=${encodeURIComponent(card.pageId)}&card=${encodeURIComponent(id)}`,
+        }).catch((err) => console.error('[cards PATCH mentions]', err))
+      )
+    }
     return NextResponse.json({ card: updated })
   } catch (err) {
     console.error('[cards PATCH]', err)

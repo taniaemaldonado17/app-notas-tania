@@ -100,6 +100,7 @@ function inlineText(content: unknown): string {
       .map((node) => {
         if (!node || typeof node !== 'object') return ''
         const n = node as DocBlock
+        if (n.type === 'mention') return `@${n.props?.name ?? ''}`
         if (typeof n.text === 'string') return n.text
         if (n.content) return inlineText(n.content)
         return ''

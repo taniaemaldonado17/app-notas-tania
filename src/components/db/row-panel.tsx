@@ -56,7 +56,7 @@ export function RowPanel({
 }
 
 function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: () => void }) {
-  const { ws } = useDb()
+  const { ws, people } = useDb()
   const [detail, setDetail] = useState<{ blocks: DocBlock[]; comments: CardComment[] } | null>(null)
   const [title, setTitle] = useState(row.title)
   const lastSaved = useRef<string | null>(null)
@@ -235,6 +235,7 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
           {detail && (
             <RichEditor
               initialBlocks={detail.blocks}
+              people={people}
               onChange={(blocks) => {
                 pending.current = blocks
                 if (timer.current) clearTimeout(timer.current)

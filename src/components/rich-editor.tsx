@@ -1,21 +1,27 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { BlockNoteSchema, defaultBlockSpecs, filterSuggestionItems, insertOrUpdateBlockForSlashMenu, type BlockNoteEditor } from '@blocknote/core'
+import { BlockNoteSchema, defaultBlockSpecs, defaultInlineContentSpecs, filterSuggestionItems, insertOrUpdateBlockForSlashMenu, type BlockNoteEditor } from '@blocknote/core'
 import { es } from '@blocknote/core/locales'
 import { getDefaultReactSlashMenuItems, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
 import '@blocknote/mantine/style.css'
 import { Code2, GalleryHorizontal } from 'lucide-react'
 import type { DocBlock } from '@/lib/blocks'
-import { uploadFile } from '@/lib/api'
+import { fetchShare, uploadFile } from '@/lib/api'
 import { EmbedBlock } from '@/components/embed-block'
 import { ImageRowBlock } from '@/components/image-row-block'
+import { Mention } from '@/components/mention-inline'
+
+export type MentionPerson = { id: string; name: string | null; email: string }
 
 const schema = BlockNoteSchema.create({
   blockSpecs: { ...defaultBlockSpecs, embed: EmbedBlock(), imageRow: ImageRowBlock() },
+  inlineContentSpecs: { ...defaultInlineContentSpecs, mention: Mention },
 })
+
+type Editor = BlockNoteEditor<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>
 
 // Spanish UI, with the toggle block named as in Notion ("Lista desplegable").
 const dictionary = {
@@ -41,10 +47,54 @@ type Props = {
   onChange: (blocks: DocBlock[]) => void
   /** Gives the parent access to the editor (e.g. for Markdown export). */
   onReady?: (editor: BlockNoteEditor | null) => void
+  /** People who can be @mentioned (they get an email). */
+  people?: MentionPerson[]
+  /** Alternative to `people`: load the page's owner and members. */
+  pageId?: string
+}
+
+const shareCache = new Map<string, Promise<MentionPerson[]>>()
+function pagePeople(pageId: string) {
+  let p = shareCache.get(pageId)
+  if (!p) {
+    p = fetchShare(pageId)
+      .then((s) => [s.owner, ...s.members].map((m) => ({ id: m.id, name: m.name, email: m.email })))
+      .catch(() => {
+        shareCache.delete(pageId)
+        return []
+      })
+    shareCache.set(pageId, p)
+  }
+  return p
+}
+
+/** "@" menu: people of the page. */
+function mentionItems(editor: Editor, people: MentionPerson[]) {
+  if (!people.length) {
+    return [
+      {
+        title: 'No hay personas para mencionar',
+        subtext: 'Compartí la página para poder mencionar a alguien',
+        onItemClick: () => {},
+      },
+    ]
+  }
+  return people.map((p) => {
+    const name = p.name?.trim() || p.email.split('@')[0]
+    return {
+      title: name,
+      subtext: p.email,
+      aliases: [p.email, p.email.split('@')[0]],
+      icon: <span className="mention-avatar">{name.slice(0, 1).toUpperCase()}</span>,
+      onItemClick: () => {
+        editor.insertInlineContent([{ type: 'mention', props: { userId: p.id, name } }, ' '] as never)
+      },
+    }
+  })
 }
 
 /** Default "/" menu plus our blocks; "Imágenes en fila" goes right after "Imagen". */
-function slashItems(editor: BlockNoteEditor<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>) {
+function slashItems(editor: Editor) {
   const items = getDefaultReactSlashMenuItems(editor)
   const imageRow = {
     title: 'Imágenes en fila',
@@ -76,8 +126,20 @@ function slashItems(editor: BlockNoteEditor<typeof schema.blockSchema, typeof sc
  *
  * Must be loaded client-side only (see card-detail-panel.tsx).
  */
-export default function RichEditor({ initialBlocks, onChange, onReady }: Props) {
+export default function RichEditor({ initialBlocks, onChange, onReady, people, pageId }: Props) {
   const { resolvedTheme } = useTheme()
+  const [loaded, setLoaded] = useState<MentionPerson[]>([])
+  useEffect(() => {
+    if (people || !pageId) return
+    let cancelled = false
+    pagePeople(pageId).then((list) => {
+      if (!cancelled) setLoaded(list)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [people, pageId])
+  const mentionable = people ?? loaded
 
   const editor = useCreateBlockNote({
     schema,
@@ -110,6 +172,10 @@ export default function RichEditor({ initialBlocks, onChange, onReady }: Props) 
             query
           )
         }
+      />
+      <SuggestionMenuController
+        triggerCharacter="@"
+        getItems={async (query) => filterSuggestionItems(mentionItems(editor, mentionable), query)}
       />
     </BlockNoteView>
   )

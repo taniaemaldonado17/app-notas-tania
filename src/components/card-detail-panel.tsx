@@ -638,6 +638,7 @@ function PanelBody({
           <RichEditor
             initialBlocks={initialBlocks}
             onChange={handleBlocksChange}
+            pageId={workspace.page?.id}
             onReady={(editor) => {
               editorRef.current = editor
             }}

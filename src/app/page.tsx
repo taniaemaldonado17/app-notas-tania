@@ -106,8 +106,22 @@ function AppShell() {
         const last = readStorage(LAST_PAGE_KEY)
         setPageId(list.some((p) => p.id === last) ? last : list[0].id)
 
+        // Links from mention emails to a card: /?page=<id>&card=<id>
+        const params = new URLSearchParams(window.location.search)
+        const pageParam = params.get('page')
+        const cardParam = params.get('card')
+        if (pageParam || cardParam) {
+          window.history.replaceState(null, '', window.location.pathname)
+          if (pageParam && list.some((p) => p.id === pageParam)) {
+            setPageId(pageParam)
+            if (cardParam) useWorkspace.getState().openCard(cardParam)
+          } else if (pageParam) {
+            toast.error('No tenés acceso a esa página')
+          }
+        }
+
         // Links copied from a database row: /?row=<id>
-        const rowParam = new URLSearchParams(window.location.search).get('row')
+        const rowParam = params.get('row')
         if (rowParam) {
           window.history.replaceState(null, '', window.location.pathname)
           try {

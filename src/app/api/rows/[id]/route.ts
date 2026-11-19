@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { getAuthUserId } from '@/lib/auth-helpers'
 import { findAccessibleRow, rowSelect, sanitizeValues, serializeRow } from '@/lib/db-server'
+import { appOrigin, notifyNewMentions } from '@/lib/mentions'
 
 /** Row with its page content and comments (opened in the side panel). */
 export async function GET(
@@ -56,7 +57,8 @@ export async function PATCH(
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
   const { id } = await params
-  if (!(await findAccessibleRow(userId, id))) {
+  const found = await findAccessibleRow(userId, id)
+  if (!found) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
 
@@ -76,6 +78,10 @@ export async function PATCH(
       }
     }
 
+    const contentChanged = data.content !== undefined
+    const before = contentChanged
+      ? (await db.dbRow.findUnique({ where: { id }, select: { content: true } }))?.content
+      : undefined
     const updated = await db.$transaction(async (tx) => {
       if (patch && Object.keys(patch).length > 0) {
         const current = await tx.dbRow.findUnique({ where: { id }, select: { values: true } })
@@ -92,6 +98,20 @@ export async function PATCH(
       }
       return tx.dbRow.update({ where: { id }, data, select: rowSelect })
     })
+    const newContent = typeof data.content === 'string' ? data.content : null
+    if (contentChanged && newContent?.includes('"mention"')) {
+      const origin = appOrigin(req)
+      after(() =>
+        notifyNewMentions({
+          actorId: userId,
+          pageId: found.database.pageId,
+          before,
+          after: newContent,
+          itemTitle: updated.title,
+          link: `${origin}/?row=${encodeURIComponent(id)}`,
+        }).catch((err) => console.error('[rows PATCH mentions]', err))
+      )
+    }
     return NextResponse.json({ row: serializeRow(updated) })
   } catch (err) {
     console.error('[rows PATCH]', err)
