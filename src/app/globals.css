@@ -275,6 +275,167 @@
   box-shadow: 0 18px 36px -8px rgba(0, 0, 0, 0.45);
 }
 
+/* ---------- "Imágenes en fila" block ---------- */
+.image-row {
+  position: relative;
+  width: 100%;
+  border-radius: 8px;
+  outline: 2px dashed transparent;
+  outline-offset: 2px;
+  transition: outline-color 120ms;
+}
+.image-row[data-dropping] { outline-color: var(--primary); }
+.image-row-grid {
+  display: grid;
+  gap: 8px;
+  align-items: start;
+}
+.image-row-item {
+  position: relative;
+  margin: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--muted);
+}
+.image-row-item[draggable="true"] { cursor: grab; }
+.image-row-item[data-dragging] { opacity: 0.4; }
+.image-row-item[data-drop-before]::before,
+.image-row-drop-end::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--primary);
+  z-index: 2;
+}
+.image-row-drop-end { position: relative; min-height: 40px; }
+.image-row-item img {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: zoom-in;
+  user-select: none;
+}
+.image-row-item-tools {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--popover) 92%, transparent);
+  border: 1px solid var(--border);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.image-row-item:hover .image-row-item-tools,
+.image-row-item-tools:focus-within { opacity: 1; }
+.image-row-item-tools button,
+.image-row-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.image-row-item-tools button:hover,
+.image-row-toolbar button:hover,
+.image-row-toolbar button[data-active] { background: var(--accent); color: var(--foreground); }
+.image-row-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.image-row:hover .image-row-toolbar,
+.image-row-toolbar:focus-within { opacity: 1; }
+.image-row-toolbar > span:first-child { margin-right: 4px; }
+.image-row-sep { width: 1px; height: 16px; margin: 0 6px; background: var(--border); }
+.image-row-uploading {
+  display: flex;
+  min-height: 120px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 6px;
+  border: 1px dashed var(--border);
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.image-row-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.image-row-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.image-row-empty-actions button,
+.image-row-url button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--foreground);
+}
+.image-row-empty-actions button:hover,
+.image-row-url button:hover { background: var(--accent); }
+.image-row-url { display: flex; gap: 6px; margin-top: 6px; }
+.image-row-url input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  font-size: 13px;
+}
+.image-row-url button.primary { background: var(--primary); color: var(--primary-foreground); border-color: transparent; }
+.image-row-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 0.8);
+  cursor: zoom-out;
+}
+.image-row-preview img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+.image-row-preview button {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.15);
+  color: #fff;
+}
+@media (max-width: 640px) {
+  .image-row-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+
 /* ---------- "Insertar HTML o web" block ---------- */
 .embed-wrap {
   position: relative;

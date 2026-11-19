@@ -7,13 +7,14 @@ import { es } from '@blocknote/core/locales'
 import { getDefaultReactSlashMenuItems, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
 import '@blocknote/mantine/style.css'
-import { Code2 } from 'lucide-react'
+import { Code2, GalleryHorizontal } from 'lucide-react'
 import type { DocBlock } from '@/lib/blocks'
 import { uploadFile } from '@/lib/api'
 import { EmbedBlock } from '@/components/embed-block'
+import { ImageRowBlock } from '@/components/image-row-block'
 
 const schema = BlockNoteSchema.create({
-  blockSpecs: { ...defaultBlockSpecs, embed: EmbedBlock() },
+  blockSpecs: { ...defaultBlockSpecs, embed: EmbedBlock(), imageRow: ImageRowBlock() },
 })
 
 // Spanish UI, with the toggle block named as in Notion ("Lista desplegable").
@@ -40,6 +41,32 @@ type Props = {
   onChange: (blocks: DocBlock[]) => void
   /** Gives the parent access to the editor (e.g. for Markdown export). */
   onReady?: (editor: BlockNoteEditor | null) => void
+}
+
+/** Default "/" menu plus our blocks; "Imágenes en fila" goes right after "Imagen". */
+function slashItems(editor: BlockNoteEditor<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>) {
+  const items = getDefaultReactSlashMenuItems(editor)
+  const imageRow = {
+    title: 'Imágenes en fila',
+    subtext: 'Varias imágenes una al lado de la otra; arrastralas para ordenarlas',
+    aliases: ['imagenes', 'fila', 'columnas', 'galeria', 'fotos', 'lado', 'grilla', 'gallery'],
+    group: es.slash_menu.image.group,
+    icon: <GalleryHorizontal size={18} />,
+    onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'imageRow' } as never),
+  }
+  const at = items.findIndex((i) => (i as { key?: string }).key === 'image')
+  items.splice(at >= 0 ? at + 1 : items.length, 0, imageRow)
+  return [
+    ...items,
+    {
+      title: 'Insertar HTML o web',
+      subtext: 'Mostrá una página web, un mapa, un video o tu propio código HTML',
+      aliases: ['html', 'embed', 'insertar', 'web', 'iframe', 'codigo', 'pagina'],
+      group: 'Insertar',
+      icon: <Code2 size={18} />,
+      onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'embed' } as never),
+    },
+  ]
 }
 
 /**
@@ -79,19 +106,7 @@ export default function RichEditor({ initialBlocks, onChange, onReady }: Props) 
         triggerCharacter="/"
         getItems={async (query) =>
           filterSuggestionItems(
-            [
-              ...getDefaultReactSlashMenuItems(editor),
-              {
-                title: 'Insertar HTML o web',
-                subtext: 'Mostrá una página web, un mapa, un video o tu propio código HTML',
-                aliases: ['html', 'embed', 'insertar', 'web', 'iframe', 'codigo', 'pagina'],
-                group: 'Insertar',
-                icon: <Code2 size={18} />,
-                onItemClick: () => {
-                  insertOrUpdateBlockForSlashMenu(editor, { type: 'embed' })
-                },
-              },
-            ],
+            slashItems(editor),
             query
           )
         }

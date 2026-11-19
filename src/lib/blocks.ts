@@ -150,6 +150,7 @@ export function docPreview(raw: string | null | undefined): string {
       const text = inlineText(b.content).trim()
       if (text) return text
       if (b.type === 'image' && b.props?.url) return '[Imagen]'
+      if (b.type === 'imageRow' && b.props?.images && b.props.images !== '[]') return '[Imágenes]'
       if (Array.isArray(b.children)) {
         const inner = walk(b.children)
         if (inner) return inner
