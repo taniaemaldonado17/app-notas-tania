@@ -689,7 +689,14 @@ export function useWorkspacePage(pageId: string | null) {
     }
   }, [pageId])
 
+  /** Updates a card on screen only (its content was already saved). */
+  const setCardDescriptionLocal = useCallback(
+    (cardId: string, description: string | null) => patchCard(cardId, (k) => ({ ...k, description })),
+    [patchCard]
+  )
+
   return {
+    setCardDescriptionLocal,
     addComment,
     deleteComment,
     setCardFavorite,

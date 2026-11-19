@@ -466,6 +466,38 @@ export async function deleteRow(rowId: string): Promise<void> {
   await jsonFetch(`${API_BASE}/rows/${rowId}`, { method: 'DELETE' })
 }
 
+/** Current stored content of a card (to pick up other people's edits). */
+export async function fetchCardDescription(cardId: string): Promise<string | null> {
+  const data = await jsonFetch<{ description: string | null }>(`${API_BASE}/cards/${cardId}`)
+  return data.description
+}
+
+/**
+ * Saves a card's or row's content, saying which stored version was edited
+ * (`baseHash`). If someone else saved in between, returns their version.
+ */
+export async function saveDocContent(
+  kind: 'card' | 'row',
+  id: string,
+  content: string | null,
+  baseHash: string
+): Promise<{ ok: true } | { conflict: string | null }> {
+  const url = kind === 'card' ? `${API_BASE}/cards/${id}` : `${API_BASE}/rows/${id}`
+  const field = kind === 'card' ? 'description' : 'content'
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ [field]: content, baseHash }),
+  })
+  if (res.status === 409) {
+    const body = await res.json().catch(() => ({}))
+    return { conflict: typeof body?.current === 'string' ? body.current : null }
+  }
+  if (!res.ok) throw new Error(`Error ${res.status}`)
+  return { ok: true }
+}
+
 export async function fetchRowDetail(
   rowId: string
 ): Promise<{ row: DbRow; pageId: string; content: string | null; comments: CardComment[] }> {

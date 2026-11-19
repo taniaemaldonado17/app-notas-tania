@@ -91,7 +91,7 @@ export function DatabasesWorkspace({ pageId, memberCount, onShare, onPageMetaCha
     function onFocus() {
       if (document.visibilityState === 'visible') refresh()
     }
-    const timer = window.setInterval(onFocus, 30_000)
+    const timer = window.setInterval(onFocus, 10_000)
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onFocus)
     return () => {

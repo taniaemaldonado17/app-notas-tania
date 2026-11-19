@@ -8,7 +8,8 @@ import { ResizableSidePanel } from '@/components/resizable-side-panel'
 import { Button } from '@/components/ui/button'
 import { CommentsSection } from '@/components/comments-section'
 import { EmojiPicker } from '@/components/emoji-picker'
-import { useDb } from '@/components/db/db-context'
+import { useDb, type Person } from '@/components/db/db-context'
+import { useDocSync } from '@/hooks/use-doc-sync'
 import { PropertyCell } from '@/components/db/property-value'
 import { AddPropertyButton, PropertyIcon, PropertyMenu } from '@/components/db/property-menu'
 import * as api from '@/lib/api'
@@ -57,42 +58,24 @@ export function RowPanel({
 
 function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: () => void }) {
   const { ws, people } = useDb()
-  const [detail, setDetail] = useState<{ blocks: DocBlock[]; comments: CardComment[] } | null>(null)
+  const [detail, setDetail] = useState<{ content: string | null; blocks: DocBlock[]; comments: CardComment[] } | null>(null)
   const [title, setTitle] = useState(row.title)
-  const lastSaved = useRef<string | null>(null)
-  const pending = useRef<DocBlock[] | null>(null)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
   useEffect(() => {
     let cancelled = false
     api
       .fetchRowDetail(row.id)
       .then((d) => {
         if (cancelled) return
-        lastSaved.current = d.content
-        setDetail({ blocks: parseDoc(d.content), comments: d.comments })
+        setDetail({ content: d.content, blocks: parseDoc(d.content), comments: d.comments })
       })
       .catch(() => {
-        if (!cancelled) setDetail({ blocks: [], comments: [] })
+        if (!cancelled) setDetail({ content: null, blocks: [], comments: [] })
       })
     return () => {
       cancelled = true
     }
   }, [row.id])
 
-  function flush() {
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = null
-    const blocks = pending.current
-    if (!blocks) return
-    pending.current = null
-    const serialized = serializeDoc(blocks)
-    if (serialized === lastSaved.current) return
-    lastSaved.current = serialized
-    ws.saveRowContent(row.id, serialized)
-  }
-
-  useEffect(() => () => flush(), [])  
 
   // Keep the title box in sync when someone else renames the row.
   useEffect(() => {
@@ -233,18 +216,30 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
 
         <div className="-mx-5 border-t border-border pt-3">
           {detail && (
-            <RichEditor
-              initialBlocks={detail.blocks}
-              people={people}
-              onChange={(blocks) => {
-                pending.current = blocks
-                if (timer.current) clearTimeout(timer.current)
-                timer.current = setTimeout(flush, 700)
-              }}
-            />
+            <RowContentEditor rowId={row.id} initial={detail.content} blocks={detail.blocks} people={people} />
           )}
         </div>
       </div>
     </div>
   )
+}
+
+/** Row page content: saved while typing and kept in sync with other people's edits. */
+function RowContentEditor({
+  rowId,
+  initial,
+  blocks,
+  people,
+}: {
+  rowId: string
+  initial: string | null
+  blocks: DocBlock[]
+  people: Person[]
+}) {
+  const sync = useDocSync({
+    initial,
+    fetchLatest: async () => (await api.fetchRowDetail(rowId)).content,
+    save: (content, baseHash) => api.saveDocContent('row', rowId, content, baseHash),
+  })
+  return <RichEditor initialBlocks={blocks} people={people} onChange={sync.onChange} onReady={sync.onReady} />
 }

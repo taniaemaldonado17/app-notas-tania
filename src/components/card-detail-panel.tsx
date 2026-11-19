@@ -48,7 +48,9 @@ import type { Card } from '@/lib/types'
 import type { BlockNoteEditor } from '@blocknote/core'
 import type { DocBlock } from '@/lib/blocks'
 import { parseDoc, serializeDoc } from '@/lib/blocks'
+import * as api from '@/lib/api'
 import { uploadImage } from '@/lib/api'
+import { useDocSync } from '@/hooks/use-doc-sync'
 import { formatDateAR, hexToRgba } from '@/lib/utils'
 
 // The editor touches the DOM on load, so it can only render in the browser.
@@ -113,34 +115,14 @@ function PanelBody({
   const [newItemText, setNewItemText] = useState('')
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const editorRef = useRef<BlockNoteEditor | null>(null)
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingBlocksRef = useRef<DocBlock[] | null>(null)
-  const lastSavedRef = useRef<string | null>(card.description)
-
-  function flushSave() {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = null
-    const pending = pendingBlocksRef.current
-    if (!pending) return
-    pendingBlocksRef.current = null
-    const serialized = serializeDoc(pending)
-    if (serialized === lastSavedRef.current) return
-    lastSavedRef.current = serialized
-    workspace.updateCard(card.id, { description: serialized })
-  }
-
-  // Debounced auto-save while typing.
-  function handleBlocksChange(next: DocBlock[]) {
-    pendingBlocksRef.current = next
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(flushSave, 700)
-  }
-
-  // Save whatever is still pending when the panel closes or switches card.
-  useEffect(() => {
-    return () => flushSave()
-  }, [])
+  // Content: saved while typing and kept in sync with other people's edits.
+  const sync = useDocSync({
+    initial: card.description,
+    fetchLatest: () => api.fetchCardDescription(card.id),
+    save: (content, baseHash) => api.saveDocContent('card', card.id, content, baseHash),
+    onSaved: (content) => workspace.setCardDescriptionLocal(card.id, content),
+  })
+  const editorRef = sync.editorRef
 
   const accentStyle = card.accentColor
     ? {
@@ -205,12 +187,8 @@ function PanelBody({
   async function handleDuplicate() {
     try {
       // Create a copy of the card in the same column with "(copia)" suffix
-      flushSave()
-      await workspace.createCard(
-        card.columnId,
-        `${card.title} (copia)`,
-        lastSavedRef.current
-      )
+      const current = editorRef.current ? serializeDoc(editorRef.current.document as DocBlock[]) : card.description
+      await workspace.createCard(card.columnId, `${card.title} (copia)`, current)
       toast.success('Tarjeta duplicada')
     } catch {
       toast.error('No se pudo duplicar la tarjeta')
@@ -637,10 +615,10 @@ function PanelBody({
         <section className="-mx-5 border-t border-border pt-3">
           <RichEditor
             initialBlocks={initialBlocks}
-            onChange={handleBlocksChange}
+            onChange={sync.onChange}
             pageId={workspace.page?.id}
             onReady={(editor) => {
-              editorRef.current = editor
+              sync.onReady(editor)
             }}
           />
         </section>

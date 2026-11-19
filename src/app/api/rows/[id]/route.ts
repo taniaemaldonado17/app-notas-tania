@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getAuthUserId } from '@/lib/auth-helpers'
 import { findAccessibleRow, rowSelect, sanitizeValues, serializeRow } from '@/lib/db-server'
 import { appOrigin, notifyNewMentions } from '@/lib/mentions'
+import { hashDoc } from '@/lib/doc-merge'
 
 /** Row with its page content and comments (opened in the side panel). */
 export async function GET(
@@ -82,6 +83,9 @@ export async function PATCH(
     const before = contentChanged
       ? (await db.dbRow.findUnique({ where: { id }, select: { content: true } }))?.content
       : undefined
+    if (contentChanged && typeof body.baseHash === 'string' && hashDoc(before) !== body.baseHash) {
+      return NextResponse.json({ error: 'conflict', current: before ?? null }, { status: 409 })
+    }
     const updated = await db.$transaction(async (tx) => {
       if (patch && Object.keys(patch).length > 0) {
         const current = await tx.dbRow.findUnique({ where: { id }, select: { values: true } })

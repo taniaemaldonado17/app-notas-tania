@@ -3,6 +3,24 @@ import { db } from '@/lib/db'
 import { getAuthUserId, verifyCardOwnership, verifyColumnOwnership } from '@/lib/auth-helpers'
 import { cardInclude } from '@/lib/card-include'
 import { appOrigin, notifyNewMentions } from '@/lib/mentions'
+import { hashDoc } from '@/lib/doc-merge'
+
+/** Current content of the card (polled while it is open, to show other people's edits). */
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const userId = await getAuthUserId()
+  if (!userId) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  const { id } = await params
+  if (!(await verifyCardOwnership(userId, id))) {
+    return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+  }
+  const card = await db.card.findUnique({ where: { id }, select: { description: true } })
+  return NextResponse.json({ description: card?.description ?? null })
+}
 
 export async function PATCH(
   req: Request,
@@ -56,6 +74,11 @@ export async function PATCH(
       data.description !== undefined
         ? (await db.card.findUnique({ where: { id }, select: { description: true } }))?.description
         : undefined
+    // The editor says which version it edited; if someone saved in between,
+    // send back the current one so both can be merged.
+    if (data.description !== undefined && typeof body.baseHash === 'string' && hashDoc(before) !== body.baseHash) {
+      return NextResponse.json({ error: 'conflict', current: before ?? null }, { status: 409 })
+    }
     const updated = await db.card.update({
       where: { id },
       data,

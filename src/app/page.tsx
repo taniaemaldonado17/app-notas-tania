@@ -157,7 +157,7 @@ function AppShell() {
   }, [])
 
   // Pick up changes made by collaborators: when coming back to the tab,
-  // and every 30 s while the tab is visible.
+  // and every 10 s while the tab is visible.
   const { refresh } = workspace
   useEffect(() => {
     function onFocus() {
@@ -167,7 +167,7 @@ function AppShell() {
     }
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') refresh()
-    }, 30_000)
+    }, 10_000)
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onFocus)
     return () => {
