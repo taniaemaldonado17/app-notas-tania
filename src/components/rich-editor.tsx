@@ -4,20 +4,30 @@ import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
 import { BlockNoteSchema, defaultBlockSpecs, defaultInlineContentSpecs, filterSuggestionItems, insertOrUpdateBlockForSlashMenu, type BlockNoteEditor } from '@blocknote/core'
 import { es } from '@blocknote/core/locales'
-import { getDefaultReactSlashMenuItems, SuggestionMenuController, useCreateBlockNote } from '@blocknote/react'
+import {
+  FormattingToolbar,
+  FormattingToolbarController,
+  getDefaultReactSlashMenuItems,
+  SideMenu,
+  SideMenuController,
+  SuggestionMenuController,
+  useCreateBlockNote,
+} from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
 import '@blocknote/mantine/style.css'
-import { Code2, GalleryHorizontal } from 'lucide-react'
+import { Code2, GalleryHorizontal, Lightbulb } from 'lucide-react'
 import type { DocBlock } from '@/lib/blocks'
 import { fetchShare, uploadFile } from '@/lib/api'
 import { EmbedBlock } from '@/components/embed-block'
 import { ImageRowBlock } from '@/components/image-row-block'
 import { Mention } from '@/components/mention-inline'
+import { CalloutBlock } from '@/components/callout-block'
+import { BlockHandleMenu, blockTypeItems } from '@/components/block-handle-menu'
 
 export type MentionPerson = { id: string; name: string | null; email: string }
 
 const schema = BlockNoteSchema.create({
-  blockSpecs: { ...defaultBlockSpecs, embed: EmbedBlock(), imageRow: ImageRowBlock() },
+  blockSpecs: { ...defaultBlockSpecs, embed: EmbedBlock(), imageRow: ImageRowBlock(), callout: CalloutBlock() },
   inlineContentSpecs: { ...defaultInlineContentSpecs, mention: Mention },
 })
 
@@ -106,6 +116,16 @@ function slashItems(editor: Editor) {
   }
   const at = items.findIndex((i) => (i as { key?: string }).key === 'image')
   items.splice(at >= 0 ? at + 1 : items.length, 0, imageRow)
+  const callout = {
+    title: 'Destacado',
+    subtext: 'Un recuadro con ícono para resaltar una nota, como en Notion',
+    aliases: ['destacado', 'callout', 'nota', 'aviso', 'recuadro', 'caja', 'tip'],
+    group: es.slash_menu.quote.group,
+    icon: <Lightbulb size={18} />,
+    onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'callout' } as never),
+  }
+  const q = items.findIndex((i) => (i as { key?: string }).key === 'quote')
+  items.splice(q >= 0 ? q + 1 : items.length, 0, callout)
   return [
     ...items,
     {
@@ -156,14 +176,52 @@ export default function RichEditor({ initialBlocks, onChange, onReady, people, p
     return () => onReady?.(null)
   }, [editor])
 
+  /**
+   * Enter inside a "Destacado" keeps writing inside the box (as in Notion):
+   * a new line is added as the first block nested in it. Enter on an empty
+   * one with nothing inside turns it back into a normal paragraph.
+   */
+  function onKeyDownCapture(e: React.KeyboardEvent) {
+    if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || e.nativeEvent.isComposing) return
+    const block = editor.getTextCursorPosition().block as unknown as { id: string; type: string; content: unknown[]; children: { id: string }[] }
+    if (block.type !== 'callout') return
+    const sel = editor.prosemirrorState.selection
+    const empty = !block.content?.length
+    if (!sel.empty) return
+    if (empty && !block.children.length) {
+      e.preventDefault()
+      e.stopPropagation()
+      editor.updateBlock(block.id, { type: 'paragraph' } as never)
+      return
+    }
+    if (sel.$from.parentOffset !== sel.$from.parent.content.size) return // middle of the text: default split
+    e.preventDefault()
+    e.stopPropagation()
+    let newId: string
+    if (block.children.length) {
+      newId = editor.insertBlocks([{ type: 'paragraph' }] as never, block.children[0].id, 'before')[0].id
+    } else {
+      editor.updateBlock(block.id, { children: [{ type: 'paragraph' }] } as never)
+      newId = (editor.getBlock(block.id) as unknown as { children: { id: string }[] }).children[0].id
+    }
+    editor.setTextCursorPosition(newId, 'start')
+  }
+
   return (
+    <div onKeyDownCapture={onKeyDownCapture} className="contents">
     <BlockNoteView
       editor={editor}
       theme={resolvedTheme === 'light' ? 'light' : 'dark'}
       onChange={() => onChange(editor.document as unknown as DocBlock[])}
       className="rich-editor"
       slashMenu={false}
+      sideMenu={false}
+      formattingToolbar={false}
     >
+      <SideMenuController sideMenu={() => <SideMenu dragHandleMenu={BlockHandleMenu} />} />
+      <FormattingToolbarController
+        formattingToolbar={() => <FormattingToolbar blockTypeSelectItems={blockTypeItems(editor as never)} />}
+      />
       <SuggestionMenuController
         triggerCharacter="/"
         getItems={async (query) =>
@@ -178,5 +236,6 @@ export default function RichEditor({ initialBlocks, onChange, onReady, people, p
         getItems={async (query) => filterSuggestionItems(mentionItems(editor, mentionable), query)}
       />
     </BlockNoteView>
+    </div>
   )
 }
