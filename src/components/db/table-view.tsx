@@ -9,6 +9,10 @@ import { RowMenu, TitleInput } from '@/components/db/row-menu'
 import { getProperty, TITLE_PROPERTY_ID, type DatabaseDef, type DbRow, type PropertyDef, type ViewDef } from '@/lib/db-types'
 import { cn } from '@/lib/utils'
 
+const TITLE_WIDTH = 280
+const MIN_WIDTH = 70
+const MAX_WIDTH = 900
+
 function colWidth(p: PropertyDef): number {
   switch (p.type) {
     case 'checkbox':
@@ -36,34 +40,99 @@ export function TableView({
   rows: DbRow[]
   onNew: () => Promise<DbRow | null>
 }) {
-  const { openRow } = useDb()
+  const { ws, openRow } = useDb()
   const [editingTitle, setEditingTitle] = useState<string | null>(null)
+  /** Width being dragged right now (saved when the mouse is released). */
+  const [live, setLive] = useState<{ id: string; w: number } | null>(null)
   const titleProp = getProperty(db, TITLE_PROPERTY_ID) ?? db.properties.find((p) => p.type === 'title')!
   const cols = view.visibleProperties.map((id) => getProperty(db, id)).filter((p): p is PropertyDef => !!p && p.type !== 'title')
-  const totalWidth = 280 + cols.reduce((s, p) => s + colWidth(p), 0) + 48
+
+  const widthOf = (p: PropertyDef) => {
+    if (live?.id === p.id) return live.w
+    const saved = view.columnWidths?.[p.id]
+    return typeof saved === 'number' ? saved : p.type === 'title' ? TITLE_WIDTH : colWidth(p)
+  }
+  const titleWidth = widthOf(titleProp)
+  const totalWidth = titleWidth + cols.reduce((s, p) => s + widthOf(p), 0) + 48
+
+  function saveWidth(id: string, w: number | null) {
+    const views = db.views.map((v) => {
+      if (v.id !== view.id) return v
+      const columnWidths = { ...(v.columnWidths ?? {}) }
+      if (w === null) delete columnWidths[id]
+      else columnWidths[id] = w
+      return { ...v, columnWidths }
+    })
+    ws.updateDatabase(db.id, { views })
+  }
+
+  function startResize(e: React.PointerEvent, p: PropertyDef) {
+    e.preventDefault()
+    e.stopPropagation()
+    const x0 = e.clientX
+    const w0 = widthOf(p)
+    let w = w0
+    document.body.classList.add('col-resizing')
+    const move = (ev: PointerEvent) => {
+      w = Math.round(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, w0 + ev.clientX - x0)))
+      setLive({ id: p.id, w })
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      document.body.classList.remove('col-resizing')
+      setLive(null)
+      if (w !== w0) saveWidth(p.id, w)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  /** Drag handle on the right edge of a header cell; double click resets the width. */
+  const resizer = (p: PropertyDef) => (
+    <span
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={`Ancho de la columna ${p.name}`}
+      title="Arrastrá para cambiar el ancho (doble clic: ancho original)"
+      onPointerDown={(e) => startResize(e, p)}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => {
+        e.stopPropagation()
+        saveWidth(p.id, null)
+      }}
+      className={cn(
+        'absolute -right-1 top-0 z-20 h-full w-2 cursor-col-resize touch-none',
+        'after:absolute after:inset-y-1 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:rounded after:bg-primary/70 after:opacity-0 hover:after:opacity-100',
+        live?.id === p.id && 'after:opacity-100'
+      )}
+    />
+  )
 
   return (
     <div className="notion-scroll overflow-x-auto">
       <div style={{ minWidth: totalWidth }} className="text-sm">
         {/* Header */}
         <div className="flex border-y border-border text-xs text-muted-foreground">
-          <PropertyMenu db={db} prop={titleProp} view={view}>
-            <button type="button" className="sticky left-0 z-10 flex h-8 w-[280px] shrink-0 items-center gap-1.5 bg-background px-2 text-left hover:bg-accent">
-              <PropertyIcon type="title" />
-              <span className="truncate">{titleProp.name}</span>
-            </button>
-          </PropertyMenu>
-          {cols.map((p) => (
-            <PropertyMenu key={p.id} db={db} prop={p} view={view}>
-              <button
-                type="button"
-                style={{ width: colWidth(p) }}
-                className="flex h-8 shrink-0 items-center gap-1.5 border-l border-border px-2 text-left hover:bg-accent"
-              >
-                <PropertyIcon type={p.type} />
-                <span className="truncate">{p.name}</span>
+          <div className="sticky left-0 z-10 shrink-0 bg-background" style={{ width: titleWidth }}>
+            <PropertyMenu db={db} prop={titleProp} view={view}>
+              <button type="button" className="flex h-8 w-full items-center gap-1.5 px-2 text-left hover:bg-accent">
+                <PropertyIcon type="title" />
+                <span className="truncate">{titleProp.name}</span>
               </button>
             </PropertyMenu>
+            {resizer(titleProp)}
+          </div>
+          {cols.map((p) => (
+            <div key={p.id} className="relative shrink-0 border-l border-border" style={{ width: widthOf(p) }}>
+              <PropertyMenu db={db} prop={p} view={view}>
+                <button type="button" className="flex h-8 w-full items-center gap-1.5 px-2 text-left hover:bg-accent">
+                  <PropertyIcon type={p.type} />
+                  <span className="truncate">{p.name}</span>
+                </button>
+              </PropertyMenu>
+              {resizer(p)}
+            </div>
           ))}
           <div className="flex h-8 w-12 shrink-0 items-center justify-center border-l border-border">
             <AddPropertyButton db={db} view={view} />
@@ -73,7 +142,7 @@ export function TableView({
         {/* Rows */}
         {rows.map((row) => (
           <div key={row.id} className="group flex min-h-9 border-b border-border hover:bg-accent/30">
-            <div className="sticky left-0 z-10 flex w-[280px] shrink-0 items-center gap-1 bg-background px-2 group-hover:bg-[color-mix(in_srgb,var(--accent)_30%,var(--background))]">
+            <div style={{ width: titleWidth }} className="sticky left-0 z-10 flex shrink-0 items-center gap-1 bg-background px-2 group-hover:bg-[color-mix(in_srgb,var(--accent)_30%,var(--background))]">
               <span className="w-5 shrink-0 text-center text-sm">
                 {row.icon || <FileText className="mx-auto h-3.5 w-3.5 text-muted-foreground" />}
               </span>
@@ -104,7 +173,7 @@ export function TableView({
               <RowMenu row={row} className="shrink-0 opacity-0 focus-visible:opacity-100 group-hover:opacity-100" />
             </div>
             {cols.map((p) => (
-              <div key={p.id} style={{ width: colWidth(p) }} className="flex shrink-0 items-stretch border-l border-border">
+              <div key={p.id} style={{ width: widthOf(p) }} className="flex shrink-0 items-stretch border-l border-border">
                 <PropertyCell db={db} row={row} prop={p} variant="table" />
               </div>
             ))}

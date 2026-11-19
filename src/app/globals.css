@@ -952,3 +952,10 @@ textarea[data-slot="textarea"]:focus-visible {
 .embed-form textarea {
   font-family: var(--font-mono);
 }
+
+/* While dragging a table column edge */
+body.col-resizing,
+body.col-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}

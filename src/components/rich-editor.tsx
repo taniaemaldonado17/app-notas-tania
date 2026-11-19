@@ -15,7 +15,9 @@ import {
 } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
 import '@blocknote/mantine/style.css'
-import { CalendarRange, Code2, GalleryHorizontal, Lightbulb } from 'lucide-react'
+import { CalendarRange, Code2, GalleryHorizontal, Lightbulb, Sheet } from 'lucide-react'
+import { toast } from 'sonner'
+import { decodeText, parseTable } from '@/lib/db-import'
 import type { DocBlock } from '@/lib/blocks'
 import { fetchShare, uploadFile } from '@/lib/api'
 import { EmbedBlock } from '@/components/embed-block'
@@ -105,6 +107,41 @@ function mentionItems(editor: Editor, people: MentionPerson[]) {
   })
 }
 
+const CSV_MAX_ROWS = 500
+const CSV_MAX_COLS = 40
+
+/** Asks for a CSV file and inserts it as a table where the "/" was typed. */
+function insertCsvTable(editor: Editor) {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.csv,.tsv,.txt,text/csv'
+  input.onchange = async () => {
+    const file = input.files?.[0]
+    if (!file) return
+    if (/\.xlsx?$/i.test(file.name)) {
+      toast.error('Ese es un archivo de Excel: en Excel usá Guardar como → CSV y subí ese archivo')
+      return
+    }
+    const table = parseTable(decodeText(await file.arrayBuffer()))
+    if (!table || !table.headers.length) {
+      toast.error('No se encontraron datos en el archivo')
+      return
+    }
+    const cols = Math.min(table.headers.length, CSV_MAX_COLS)
+    const rows = [table.headers, ...table.rows.slice(0, CSV_MAX_ROWS)].map((r) => ({
+      cells: Array.from({ length: cols }, (_, i) => r[i] ?? ''),
+    }))
+    insertOrUpdateBlockForSlashMenu(editor, {
+      type: 'table',
+      content: { type: 'tableContent', headerRows: 1, rows },
+    } as never)
+    if (table.rows.length > CSV_MAX_ROWS || table.headers.length > CSV_MAX_COLS) {
+      toast.info(`Se cargaron las primeras ${CSV_MAX_ROWS} filas y ${CSV_MAX_COLS} columnas. Para tablas grandes conviene una base de datos.`)
+    }
+  }
+  input.click()
+}
+
 /** Default "/" menu plus our blocks; "Imágenes en fila" goes right after "Imagen". */
 function slashItems(editor: Editor) {
   const items = getDefaultReactSlashMenuItems(editor)
@@ -128,6 +165,16 @@ function slashItems(editor: Editor) {
   }
   const q = items.findIndex((i) => (i as { key?: string }).key === 'quote')
   items.splice(q >= 0 ? q + 1 : items.length, 0, callout)
+  const csvTable = {
+    title: 'Tabla desde CSV',
+    subtext: 'Subí un archivo CSV (de Excel o Notion) y se arma una tabla',
+    aliases: ['csv', 'tabla', 'importar', 'excel', 'planilla', 'table'],
+    group: es.slash_menu.table.group,
+    icon: <Sheet size={18} />,
+    onItemClick: () => insertCsvTable(editor),
+  }
+  const tb = items.findIndex((i) => (i as { key?: string }).key === 'table')
+  items.splice(tb >= 0 ? tb + 1 : items.length, 0, csvTable)
   return [
     ...items,
     {

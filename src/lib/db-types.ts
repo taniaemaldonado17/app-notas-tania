@@ -195,6 +195,8 @@ export type ViewDef = {
   endDateProperty?: string
   /** gallery: url property used as cover image */
   coverProperty?: string
+  /** table: column widths in px set by dragging the header edge (property id → px) */
+  columnWidths?: Record<string, number>
 }
 
 /* ------------------------------------------------------------------ */
