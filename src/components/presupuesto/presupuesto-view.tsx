@@ -15,9 +15,15 @@ import type { PresupuestoDetalle, PresupuestoInfo } from '@/lib/presupuesto/type
 import { cn } from '@/lib/utils'
 import { CampoNumero, CampoTexto, Kpi, num, td, th, useEditar } from './campos'
 import { InsumosTab } from './insumos-tab'
+import { CertificacionTab } from '@/components/certificacion/certificacion-tab'
 import { ItemDialog } from './item-dialog'
 
-type Tab = 'presupuesto' | 'insumos'
+type Tab = 'presupuesto' | 'insumos' | 'certificacion'
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'presupuesto', label: 'Presupuesto' },
+  { id: 'insumos', label: 'Insumos' },
+  { id: 'certificacion', label: 'Certificación' },
+]
 
 /** Full-screen budget opened from a project row. */
 export function PresupuestoView({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
@@ -79,17 +85,17 @@ export function PresupuestoView({ id, onClose, onChanged }: { id: string; onClos
         </Button>
         <div className="min-w-0 flex-1 truncate text-sm font-medium">{data?.info.nombre ?? 'Presupuesto'}</div>
         <nav className="flex rounded-lg bg-muted p-0.5 text-sm">
-          {(['presupuesto', 'insumos'] as Tab[]).map((t) => (
+          {TABS.map((t) => (
             <button
-              key={t}
+              key={t.id}
               type="button"
-              onClick={() => setTab(t)}
+              onClick={() => setTab(t.id)}
               className={cn(
-                'rounded-md px-3 py-1 font-medium transition',
-                tab === t ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                'rounded-md px-2.5 py-1 font-medium transition sm:px-3',
+                tab === t.id ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              {t === 'presupuesto' ? 'Presupuesto' : 'Insumos'}
+              {t.label}
             </button>
           ))}
         </nav>
@@ -126,8 +132,10 @@ export function PresupuestoView({ id, onClose, onChanged }: { id: string; onClos
             onEditParams={() => setParamsOpen(true)}
             onChanged={recargar}
           />
-        ) : (
+        ) : tab === 'insumos' ? (
           <InsumosTab presupuestoId={id} cargas={data.info.cargasSociales} coef={data.info.coefAjuste} onChanged={recargar} />
+        ) : (
+          <CertificacionTab presupuestoId={id} onChanged={onChanged} />
         )}
       </div>
 

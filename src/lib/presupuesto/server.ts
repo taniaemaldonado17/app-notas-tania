@@ -147,25 +147,33 @@ export async function sincronizarTotal(presupuestoId: string): Promise<number> {
   return total
 }
 
-async function escribirTotalEnFila(rowId: string, total: number | null) {
+function escribirTotalEnFila(rowId: string, total: number | null) {
+  return escribirNumeroEnFila(rowId, { id: '', name: COLUMNA_TOTAL, type: 'number', numberFormat: 'ars' }, total)
+}
+
+/**
+ * Writes a number into the project row's column named like `columna.name`
+ * (a number column), creating the column if it's missing. null clears it.
+ */
+export async function escribirNumeroEnFila(rowId: string, columna: PropertyDef, valor: number | null) {
   const row = await db.dbRow.findUnique({
     where: { id: rowId },
     select: { values: true, database: { select: { id: true, properties: true } } },
   })
   if (!row) return
   const properties = (row.database.properties as unknown as PropertyDef[]) ?? []
-  let prop = properties.find((p) => p.name.trim().toLowerCase() === COLUMNA_TOTAL.toLowerCase() && p.type === 'number')
+  let prop = properties.find((p) => p.name.trim().toLowerCase() === columna.name.toLowerCase() && p.type === 'number')
   if (!prop) {
-    if (total === null) return
-    prop = { id: newId('prop'), name: COLUMNA_TOTAL, type: 'number', numberFormat: 'ars' }
+    if (valor === null) return
+    prop = { ...columna, id: newId('prop') }
     await db.database.update({
       where: { id: row.database.id },
       data: { properties: [...properties, prop] as unknown as Prisma.InputJsonValue },
     })
   }
   const values = { ...((row.values as Record<string, unknown>) ?? {}) }
-  if (total === null) delete values[prop.id]
-  else values[prop.id] = total
+  if (valor === null) delete values[prop.id]
+  else values[prop.id] = valor
   await db.dbRow.update({ where: { id: rowId }, data: { values: values as Prisma.InputJsonValue } })
 }
 

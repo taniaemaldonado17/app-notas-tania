@@ -593,3 +593,27 @@ export async function editarPresupuesto(
 ): Promise<{ id?: string; total: number }> {
   return jsonFetch(`${API_BASE}/presupuestos/${id}/editar`, { method: 'POST', body: JSON.stringify(op) })
 }
+
+/* ----------------------------- Certificación de obra ----------------------------- */
+
+export async function fetchCertificacion(presupuestoId: string): Promise<import('@/lib/certificacion/types').CertificacionData> {
+  return jsonFetch(`${API_BASE}/presupuestos/${presupuestoId}/certificacion`)
+}
+
+/** One certification operation (contract, certificates, plan curve). */
+export async function certificacionOp(
+  presupuestoId: string,
+  op: import('@/lib/certificacion/server').OperacionCert
+): Promise<{ id?: string }> {
+  return jsonFetch(`${API_BASE}/presupuestos/${presupuestoId}/certificacion`, { method: 'POST', body: JSON.stringify(op) })
+}
+
+export async function fetchCertificado(
+  presupuestoId: string,
+  certificadoId: string
+): Promise<import('@/lib/certificacion/types').CertificadoDetalleData> {
+  const data = await jsonFetch<{ certificado: import('@/lib/certificacion/types').CertificadoDetalleData }>(
+    `${API_BASE}/presupuestos/${presupuestoId}/certificados/${certificadoId}`
+  )
+  return data.certificado
+}

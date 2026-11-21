@@ -312,10 +312,121 @@ model Presupuesto {
   insumos            PresInsumo[]
   rubros             PresRubro[]
   items              PresItem[]
+  contrato           Contrato?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
   @@index([pageId])
+}
+
+// ------------------------------------------------------------------
+// Certificación de obra (src/lib/certificacion). The contract freezes the
+// itemized list (ContratoItem) when it's created: certificates are computed
+// on that copy, so later budget edits don't change issued certificates.
+// ------------------------------------------------------------------
+
+model Contrato {
+  id                String   @id @default(cuid())
+  presupuestoId     String   @unique
+  presupuesto       Presupuesto @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  montoContrato     Float
+  // montoContrato / costo-costo total at freeze time
+  coeficientePase   Float    @default(1)
+  anticipoPct       Float    @default(0)
+  fondoReparoPct    Float    @default(0.05)
+  // 'deposito' | 'poliza'
+  fondoReparoTipo   String   @default("deposito")
+  polizaAseguradora String?
+  polizaNumero      String?
+  polizaMonto       Float?
+  comitente         String?
+  contratista       String?
+  numero            String?
+  mesBasico         String?
+  fechaContrato     String?
+  fechaInicio       String?
+  fechaFin          String?
+  plazo             String?
+  items             ContratoItem[]
+  certificados      Certificado[]
+  curva             CurvaPlan[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model ContratoItem {
+  id               String   @id @default(cuid())
+  contratoId       String
+  contrato         Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  rubroNumero      Int
+  rubroDescripcion String
+  codigo           String
+  descripcion      String
+  unidad           String?
+  cantidad         Float
+  // Contract unit price (costo-costo P.U. x coeficiente de pase)
+  precioUnitario   Float
+  importe          Float
+  position         Int      @default(0)
+  lineas           CertificadoLinea[]
+
+  @@index([contratoId])
+}
+
+model Certificado {
+  id                       String   @id @default(cuid())
+  contratoId               String
+  contrato                 Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  numero                   Int
+  fecha                    String
+  periodo                  String?
+  porcentajeAvance         Float
+  montoBruto               Float
+  montoBrutoAcumulado      Float
+  descuentoAnticipo        Float
+  anticipoAcumulado        Float
+  descuentoFondoReparo     Float
+  sustitucionFondoReparo   Float
+  fondoReparoAcumulado     Float
+  montoNeto                Float
+  saldoObra                Float
+  saldoAnticipo            Float
+  saldoFondoReparo         Float
+  rectificado              Boolean  @default(false)
+  rectificadoEn            DateTime?
+  createdById              String?
+  lineas                   CertificadoLinea[]
+  createdAt                DateTime @default(now())
+
+  @@unique([contratoId, numero])
+}
+
+// Advance of one item in one certificate, as fractions (0-1) of the item.
+model CertificadoLinea {
+  id              String       @id @default(cuid())
+  certificadoId   String
+  certificado     Certificado  @relation(fields: [certificadoId], references: [id], onDelete: Cascade)
+  contratoItemId  String
+  contratoItem    ContratoItem @relation(fields: [contratoItemId], references: [id], onDelete: Cascade)
+  anterior        Float
+  presente        Float
+  acumulado       Float
+  importePresente Float
+
+  @@index([certificadoId])
+  @@index([contratoItemId])
+}
+
+// Planned cumulative progress per period (curva de plan de trabajo).
+model CurvaPlan {
+  id                  String   @id @default(cuid())
+  contratoId          String
+  contrato            Contrato @relation(fields: [contratoId], references: [id], onDelete: Cascade)
+  orden               Int
+  periodo             String
+  porcentajeAcumulado Float
+
+  @@unique([contratoId, orden])
 }
 
 // tipo: MO (mano de obra) | MAT | EQ (equipos) | SUB (subcontratos)
