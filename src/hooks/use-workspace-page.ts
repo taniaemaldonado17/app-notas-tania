@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { Attachment, Card, ChecklistItem, Column, Page } from '@/lib/types'
-import { hexToRgba } from '@/lib/utils'
 import * as api from '@/lib/api'
 
 type State = {
@@ -752,12 +751,12 @@ export function checklistProgress(card: Card): { done: number; total: number; ra
   return { done, total, ratio: total === 0 ? 0 : done / total }
 }
 
-/** Returns the inline style for a card's accent color stripe (or null). */
+/**
+ * Inline style for a card's accent color (or null). The `.card-accent` class
+ * in globals.css turns it into a uniform Notion-style tint of the whole card.
+ */
 export function cardAccentStyle(card: Card): React.CSSProperties | null {
   const color = card.accentColor
   if (!color) return null
-  return {
-    borderLeft: `3px solid ${color}`,
-    background: `linear-gradient(90deg, ${hexToRgba(color, 0.08)} 0%, transparent 30%)`,
-  }
+  return { '--card-accent': color } as React.CSSProperties
 }

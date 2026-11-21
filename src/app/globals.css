@@ -961,3 +961,21 @@ body.col-resizing * {
 }
 
 body.row-dragging, body.row-dragging * { cursor: grabbing !important; user-select: none; }
+
+/* Board cards with an accent color: uniform Notion-style tint of the whole
+   card (no side stripe). --card-accent is set inline by cardAccentStyle(). */
+.card-accent {
+  background: color-mix(in oklab, var(--card-accent) 14%, var(--card));
+  border-color: color-mix(in oklab, var(--card-accent) 28%, transparent);
+}
+.card-accent:hover {
+  background: color-mix(in oklab, var(--card-accent) 20%, var(--card));
+  border-color: color-mix(in oklab, var(--card-accent) 40%, transparent);
+}
+.dark .card-accent {
+  background: color-mix(in oklab, var(--card-accent) 26%, var(--card));
+  border-color: color-mix(in oklab, var(--card-accent) 22%, transparent);
+}
+.dark .card-accent:hover {
+  background: color-mix(in oklab, var(--card-accent) 32%, var(--card));
+}

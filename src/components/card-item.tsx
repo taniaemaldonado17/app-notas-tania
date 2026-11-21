@@ -81,13 +81,14 @@ export function CardItem({ card, dimmed, workspace, onOpen }: Props) {
   const bumpFavorites = useWorkspace((s) => s.bumpFavorites)
   const isFavorite = !!card.favorite
 
+  const accentStyle = cardAccentStyle(card)
   const style: React.CSSProperties = {
+    ...accentStyle,
     transform: CSS.Translate.toString(transform),
     transition,
     opacity: isDragging ? 0.4 : undefined,
   }
 
-  const accentStyle = cardAccentStyle(card)
   const progress = checklistProgress(card)
   const preview = useMemo(() => docPreview(card.description), [card.description])
 
@@ -228,6 +229,7 @@ export function CardItem({ card, dimmed, workspace, onOpen }: Props) {
           style={style}
           className={cn(
             'group relative cursor-pointer rounded-md border border-border bg-card text-card-foreground transition-all hover:border-border hover:shadow-sm',
+            accentStyle && 'card-accent',
             dimmed && 'opacity-30',
             isDragging && 'dragging-card'
           )}
@@ -268,7 +270,7 @@ export function CardItem({ card, dimmed, workspace, onOpen }: Props) {
             </div>
           )}
 
-          <div className="px-2.5 py-2" style={accentStyle ?? undefined}>
+          <div className="px-2.5 py-2">
             {/* Title row */}
             <div className="flex items-start gap-1">
               {/* Drag handle */}
