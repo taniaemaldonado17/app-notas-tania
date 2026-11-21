@@ -11,7 +11,8 @@
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "test:presupuesto": "node --experimental-strip-types --no-warnings --test src/lib/presupuesto/presupuesto.test.ts"
   },
   "dependencies": {
     "@blocknote/core": "^0.57.0",
@@ -61,6 +62,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
+    "exceljs": "^4.4.0",
     "framer-motion": "^12.23.2",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.525.0",

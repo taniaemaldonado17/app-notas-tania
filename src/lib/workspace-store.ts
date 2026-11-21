@@ -34,6 +34,11 @@ type WorkspaceUIState = {
   /** Bumped whenever a card's favourite flag changes, so the sidebar reloads. */
   favoritesVersion: number
   bumpFavorites: () => void
+
+  /** Budget (cómputo y presupuesto) open full screen over a databases page. */
+  openPresupuestoId: string | null
+  openPresupuesto: (id: string) => void
+  closePresupuesto: () => void
 }
 
 export const useWorkspace = create<WorkspaceUIState>((set) => ({
@@ -59,4 +64,8 @@ export const useWorkspace = create<WorkspaceUIState>((set) => ({
 
   favoritesVersion: 0,
   bumpFavorites: () => set((s) => ({ favoritesVersion: s.favoritesVersion + 1 })),
+
+  openPresupuestoId: null,
+  openPresupuesto: (id) => set({ openPresupuestoId: id }),
+  closePresupuesto: () => set({ openPresupuestoId: null }),
 }))

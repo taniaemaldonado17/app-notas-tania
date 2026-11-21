@@ -12,6 +12,7 @@ import { useDb, type Person } from '@/components/db/db-context'
 import { useDocSync } from '@/hooks/use-doc-sync'
 import { PropertyCell } from '@/components/db/property-value'
 import { AddPropertyButton, PropertyIcon, PropertyMenu } from '@/components/db/property-menu'
+import { admitePresupuesto, PresupuestoBlock } from '@/components/presupuesto/presupuesto-block'
 import * as api from '@/lib/api'
 import { parseDoc, serializeDoc, type DocBlock } from '@/lib/blocks'
 import type { CardComment } from '@/lib/types'
@@ -185,6 +186,8 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
           ))}
           <AddPropertyButton db={db} label="Agregar propiedad" className="h-8 rounded px-2 hover:bg-accent" />
         </div>
+
+        {admitePresupuesto(db) && <PresupuestoBlock rowId={row.id} />}
 
         <div className="border-t border-border pt-4">
           {detail ? (

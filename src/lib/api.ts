@@ -550,3 +550,38 @@ export async function restoreVersion(
     body: JSON.stringify(only ?? {}),
   })
 }
+
+/* ----------------------------- Presupuestos de obra ----------------------------- */
+
+
+export async function fetchRowPresupuesto(rowId: string) {
+  const data = await jsonFetch<{ presupuesto: import('@/lib/presupuesto/types').PresupuestoResumen | null }>(
+    `${API_BASE}/rows/${rowId}/presupuesto`
+  )
+  return data.presupuesto
+}
+
+/** Imports a "cómputo y presupuesto" .xlsx as the budget of a project row. */
+export async function importPresupuesto(rowId: string, file: File): Promise<{ id: string; avisos: string[] }> {
+  const formData = new FormData()
+  formData.append('rowId', rowId)
+  formData.append('file', file)
+  return jsonFetch(`${API_BASE}/presupuestos/import`, { method: 'POST', body: formData })
+}
+
+export async function fetchPresupuesto(id: string): Promise<import('@/lib/presupuesto/types').PresupuestoDetalle> {
+  return jsonFetch(`${API_BASE}/presupuestos/${id}`)
+}
+
+export async function deletePresupuesto(id: string): Promise<void> {
+  await jsonFetch(`${API_BASE}/presupuestos/${id}`, { method: 'DELETE' })
+}
+
+export async function fetchPresupuestoItem(id: string, itemId: string): Promise<import('@/lib/presupuesto/types').ItemDetalle> {
+  return jsonFetch(`${API_BASE}/presupuestos/${id}/items/${itemId}`)
+}
+
+export async function fetchPresupuestoInsumos(id: string): Promise<import('@/lib/presupuesto/types').InsumoFila[]> {
+  const data = await jsonFetch<{ insumos: import('@/lib/presupuesto/types').InsumoFila[] }>(`${API_BASE}/presupuestos/${id}/insumos`)
+  return data.insumos
+}

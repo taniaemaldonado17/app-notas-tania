@@ -58,6 +58,7 @@ model Page {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   columns     Column[]
   versions    PageVersion[]
+  presupuestos Presupuesto[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -272,10 +273,127 @@ model DbRow {
   createdById String?
   createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
   comments    Comment[]
+  presupuesto Presupuesto?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   @@index([databaseId])
+}
+
+// ------------------------------------------------------------------
+// Cómputo y presupuesto de obra (costo-costo). Cálculo en
+// src/lib/presupuesto/calculo.ts:
+//   precio de cálculo del insumo = base x (1 + cargas) si es MO, si no base x coef
+//   P.U. del ítem = Σ cantidad x precio de cálculo de sus insumos (APU)
+//   cantidad del ítem = Σ parciales de sus mediciones (producto de factores)
+// ------------------------------------------------------------------
+
+// A budget belongs to a page (access = page access) and is usually linked
+// to a project row of that page (ARQUITECTURA > Proyectos).
+model Presupuesto {
+  id                 String   @id @default(cuid())
+  pageId             String
+  page               Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  // Project row. SetNull so restoring a deleted row from history doesn't
+  // lose the budget: it can be linked again.
+  rowId              String?  @unique
+  row                DbRow?   @relation(fields: [rowId], references: [id], onDelete: SetNull)
+  nombre             String
+  descripcion        String?
+  ubicacion          String?
+  tipoCambio         Float?
+  cargasSociales     Float    @default(0)
+  coefAjuste         Float    @default(1)
+  superficieCubierta Float?
+  superficiePredio   Float?
+  // Last computed total, copied to the project row's "Presupuesto" column.
+  totalCache         Float    @default(0)
+  createdById        String?
+  insumos            PresInsumo[]
+  rubros             PresRubro[]
+  items              PresItem[]
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([pageId])
+}
+
+// tipo: MO (mano de obra) | MAT | EQ (equipos) | SUB (subcontratos)
+model PresInsumo {
+  id            String      @id @default(cuid())
+  presupuestoId String
+  presupuesto   Presupuesto @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  codigo        String
+  descripcion   String
+  unidad        String?
+  tipo          String
+  precioBase    Float       @default(0)
+  fuente        String?
+  position      Int         @default(0)
+  apu           PresApu[]
+
+  @@unique([presupuestoId, codigo])
+}
+
+model PresRubro {
+  id            String      @id @default(cuid())
+  presupuestoId String
+  presupuesto   Presupuesto @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  numero        Int
+  descripcion   String
+  position      Int         @default(0)
+  items         PresItem[]
+
+  @@index([presupuestoId])
+}
+
+model PresItem {
+  id            String         @id @default(cuid())
+  presupuestoId String
+  presupuesto   Presupuesto    @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  rubroId       String
+  rubro         PresRubro      @relation(fields: [rubroId], references: [id], onDelete: Cascade)
+  codigo        String
+  descripcion   String
+  unidad        String?
+  observaciones String?
+  position      Int            @default(0)
+  apu           PresApu[]
+  mediciones    PresMedicion[]
+
+  @@index([presupuestoId])
+  @@index([rubroId])
+}
+
+// Análisis de precio unitario: cuánto de un insumo lleva una unidad del ítem.
+model PresApu {
+  id       String     @id @default(cuid())
+  itemId   String
+  item     PresItem   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  insumoId String
+  insumo   PresInsumo @relation(fields: [insumoId], references: [id], onDelete: Cascade)
+  cantidad Float      @default(0)
+  position Int        @default(0)
+
+  @@index([itemId])
+  @@index([insumoId])
+}
+
+// Cómputo métrico: parcial = producto de los factores cargados (vacíos no cuentan).
+model PresMedicion {
+  id       String   @id @default(cuid())
+  itemId   String
+  item     PresItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  sector   String?
+  criterio String?
+  cant     Float?
+  largo    Float?
+  ancho    Float?
+  alto     Float?
+  coef     Float?
+  position Int      @default(0)
+
+  @@index([itemId])
 }
 
 // Saved state of a whole page (databases + rows, or board columns + cards),

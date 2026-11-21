@@ -35,6 +35,7 @@ import { TopBar, CoverBanner } from '@/components/top-bar'
 import { DbProvider, useDb, type DbContextValue, type Person } from '@/components/db/db-context'
 import { DatabaseBlock } from '@/components/db/database-block'
 import { RowPanel } from '@/components/db/row-panel'
+import { PresupuestoView } from '@/components/presupuesto/presupuesto-view'
 import { ImportDialog } from '@/components/db/import-dialog'
 import { FilterEditor } from '@/components/db/view-toolbar'
 import { ColorDot } from '@/components/db/chips'
@@ -69,8 +70,13 @@ export function DatabasesWorkspace({ pageId, memberCount, onShare, onPageMetaCha
   const selectedRowId = useWorkspace((s) => s.selectedRowId)
   const openRow = useWorkspace((s) => s.openRow)
   const closeRow = useWorkspace((s) => s.closeRow)
+  const openPresupuestoId = useWorkspace((s) => s.openPresupuestoId)
+  const closePresupuesto = useWorkspace((s) => s.closePresupuesto)
   const [people, setPeople] = useState<Person[]>([])
   const { refresh } = ws
+
+  // A budget opened on this page doesn't follow you to another page.
+  useEffect(() => closePresupuesto, [pageId, closePresupuesto])
 
   // People who can be assigned: owner + members of this page.
   useEffect(() => {
@@ -149,6 +155,17 @@ export function DatabasesWorkspace({ pageId, memberCount, onShare, onPageMetaCha
           )}
         </main>
         <RowPanel rowId={selectedRowId} onClose={closeRow} />
+        {openPresupuestoId && (
+          <PresupuestoView
+            key={openPresupuestoId}
+            id={openPresupuestoId}
+            onClose={() => {
+              closePresupuesto()
+              void refresh() // the project's "Presupuesto" column may have changed
+            }}
+            onChanged={() => void refresh()}
+          />
+        )}
       </div>
     </DbProvider>
   )
