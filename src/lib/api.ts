@@ -585,3 +585,11 @@ export async function fetchPresupuestoInsumos(id: string): Promise<import('@/lib
   const data = await jsonFetch<{ insumos: import('@/lib/presupuesto/types').InsumoFila[] }>(`${API_BASE}/presupuestos/${id}/insumos`)
   return data.insumos
 }
+
+/** One edit to a budget; returns the created id (if any) and the new total. */
+export async function editarPresupuesto(
+  id: string,
+  op: import('@/lib/presupuesto/editar').Operacion
+): Promise<{ id?: string; total: number }> {
+  return jsonFetch(`${API_BASE}/presupuestos/${id}/editar`, { method: 'POST', body: JSON.stringify(op) })
+}

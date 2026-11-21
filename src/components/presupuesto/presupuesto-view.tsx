@@ -1,16 +1,21 @@
 'use client'
 
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowLeft, ChevronRight, Loader2, MoreHorizontal, Search, Trash2 } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import * as api from '@/lib/api'
-import { NOMBRES_TIPO, TIPOS_INSUMO, type TipoInsumo } from '@/lib/presupuesto/calculo'
-import { fmtARS, fmtNum, fmtNumFino, fmtPct, fmtUSD } from '@/lib/presupuesto/format'
-import type { InsumoFila, ItemDetalle, PresupuestoDetalle } from '@/lib/presupuesto/types'
+import { fmtARS, fmtInput, fmtNum, fmtNumFino, fmtPct, fmtUSD, parseNumeroAR } from '@/lib/presupuesto/format'
+import type { PresupuestoDetalle, PresupuestoInfo } from '@/lib/presupuesto/types'
 import { cn } from '@/lib/utils'
+import { CampoNumero, CampoTexto, Kpi, num, td, th, useEditar } from './campos'
+import { InsumosTab } from './insumos-tab'
+import { ItemDialog } from './item-dialog'
 
 type Tab = 'presupuesto' | 'insumos'
 
@@ -20,26 +25,31 @@ export function PresupuestoView({ id, onClose, onChanged }: { id: string; onClos
   const [error, setError] = useState(false)
   const [tab, setTab] = useState<Tab>('presupuesto')
   const [itemId, setItemId] = useState<string | null>(null)
+  const [paramsOpen, setParamsOpen] = useState(false)
 
-  useEffect(() => {
-    let cancelled = false
-    api
-      .fetchPresupuesto(id)
-      .then((d) => !cancelled && setData(d))
-      .catch(() => !cancelled && setError(true))
-    return () => {
-      cancelled = true
+  const cargar = useCallback(async () => {
+    try {
+      setData(await api.fetchPresupuesto(id))
+    } catch {
+      setError(true)
     }
   }, [id])
 
-  // Esc closes the view (the item dialog handles its own Esc first).
+  useEffect(() => {
+    void cargar()
+  }, [cargar])
+
+  // Esc closes the view (dialogs handle their own Esc first).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !itemId) onClose()
+      if (e.key !== 'Escape' || itemId || paramsOpen) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return
+      onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [itemId, onClose])
+  }, [itemId, paramsOpen, onClose])
 
   async function eliminar() {
     if (!data) return
@@ -56,6 +66,9 @@ export function PresupuestoView({ id, onClose, onChanged }: { id: string; onClos
       toast.error('No se pudo eliminar el presupuesto')
     }
   }
+
+  const cerrarItem = useCallback(() => setItemId(null), [])
+  const recargar = useCallback(() => void cargar(), [cargar])
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-label="Presupuesto">
@@ -87,6 +100,10 @@ export function PresupuestoView({ id, onClose, onChanged }: { id: string; onClos
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setParamsOpen(true)} disabled={!data}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Editar datos y parámetros
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={eliminar} className="text-destructive focus:text-destructive">
               <Trash2 className="mr-2 h-4 w-4" />
               Eliminar presupuesto
@@ -103,13 +120,27 @@ export function PresupuestoView({ id, onClose, onChanged }: { id: string; onClos
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : tab === 'presupuesto' ? (
-          <Resumen data={data} onOpenItem={setItemId} />
+          <Resumen
+            data={data}
+            onOpenItem={setItemId}
+            onEditParams={() => setParamsOpen(true)}
+            onChanged={recargar}
+          />
         ) : (
-          <Insumos id={id} cargas={data.info.cargasSociales} coef={data.info.coefAjuste} />
+          <InsumosTab presupuestoId={id} cargas={data.info.cargasSociales} coef={data.info.coefAjuste} onChanged={recargar} />
         )}
       </div>
 
-      <ItemDialog presupuestoId={id} itemId={itemId} onClose={() => setItemId(null)} />
+      <ItemDialog presupuestoId={id} itemId={itemId} onClose={cerrarItem} onChanged={recargar} />
+      {data && (
+        <ParametrosDialog
+          open={paramsOpen}
+          onOpenChange={setParamsOpen}
+          info={data.info}
+          presupuestoId={id}
+          onSaved={recargar}
+        />
+      )}
     </div>
   )
 }
@@ -118,19 +149,21 @@ export function PresupuestoView({ id, onClose, onChanged }: { id: string; onClos
 /* Resumen: indicadores + rubros desplegables                           */
 /* ------------------------------------------------------------------ */
 
-function Kpi({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className={cn('mt-1 text-lg font-semibold tabular-nums sm:text-xl', accent && 'text-primary')}>{value}</div>
-    </div>
-  )
-}
-
-function Resumen({ data, onOpenItem }: { data: PresupuestoDetalle; onOpenItem: (id: string) => void }) {
+function Resumen({
+  data,
+  onOpenItem,
+  onEditParams,
+  onChanged,
+}: {
+  data: PresupuestoDetalle
+  onOpenItem: (id: string) => void
+  onEditParams: () => void
+  onChanged: () => void
+}) {
   const { info, calc } = data
+  const editar = useEditar(info.id, onChanged)
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
-  const todosAbiertos = abiertos.size === calc.rubros.length
+  const todosAbiertos = calc.rubros.length > 0 && abiertos.size === calc.rubros.length
 
   function toggle(rubroId: string) {
     setAbiertos((s) => {
@@ -141,11 +174,34 @@ function Resumen({ data, onOpenItem }: { data: PresupuestoDetalle; onOpenItem: (
     })
   }
 
+  async function agregarRubro() {
+    const r = await editar({ op: 'rubro.crear', data: { descripcion: 'Nuevo rubro' } })
+    if (r?.id) setAbiertos((s) => new Set(s).add(r.id!))
+  }
+
+  async function agregarItem(rubroId: string) {
+    const r = await editar({ op: 'item.crear', data: { rubroId, descripcion: 'Nuevo ítem' } })
+    if (r?.id) onOpenItem(r.id)
+  }
+
+  async function eliminarRubro(r: PresupuestoDetalle['calc']['rubros'][number]) {
+    const msg = r.items.length
+      ? `¿Eliminar el rubro ${r.numero} — ${r.descripcion} y sus ${r.items.length} ítems (con sus análisis y mediciones)?`
+      : `¿Eliminar el rubro ${r.numero} — ${r.descripcion}?`
+    if (window.confirm(msg)) await editar({ op: 'rubro.eliminar', id: r.id })
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6">
-      <div>
-        <h1 className="text-2xl font-bold sm:text-3xl">{info.nombre}</h1>
-        {info.descripcion && <p className="mt-1 text-sm text-muted-foreground">{info.descripcion}</p>}
+      <div className="group flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-bold sm:text-3xl">{info.nombre}</h1>
+          {info.descripcion && <p className="mt-1 text-sm text-muted-foreground">{info.descripcion}</p>}
+        </div>
+        <Button variant="ghost" size="sm" onClick={onEditParams} className="shrink-0 text-muted-foreground">
+          <Pencil className="mr-1.5 h-3.5 w-3.5" />
+          Editar
+        </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -155,32 +211,39 @@ function Resumen({ data, onOpenItem }: { data: PresupuestoDetalle; onOpenItem: (
         <Kpi label="Rubros / ítems" value={`${calc.rubros.length} / ${calc.cantidadItems}`} />
       </div>
 
-      <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+      <button
+        type="button"
+        onClick={onEditParams}
+        className="flex w-full flex-wrap gap-x-6 gap-y-1 rounded-lg px-2 py-1.5 text-left text-sm transition hover:bg-accent/40"
+        title="Editar parámetros"
+      >
         {info.ubicacion && <Dato k="Ubicación" v={info.ubicacion} />}
         <Dato k="Tipo de cambio" v={info.tipoCambio ? `${fmtARS(info.tipoCambio)} por US$` : '–'} />
         <Dato k="Cargas sociales" v={`${fmtPct(info.cargasSociales)} (mano de obra)`} />
         <Dato k="Coef. de ajuste" v={`${fmtNumFino(info.coefAjuste)} (materiales y equipos)`} />
         {info.superficieCubierta ? <Dato k="Sup. cubierta" v={`${fmtNum(info.superficieCubierta)} m²`} /> : null}
         {info.superficiePredio ? <Dato k="Sup. del predio" v={`${fmtNum(info.superficiePredio)} m²`} /> : null}
-      </dl>
+      </button>
 
       <section>
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-lg font-semibold">Rubros e ítems</h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setAbiertos(todosAbiertos ? new Set() : new Set(calc.rubros.map((r) => r.id)))}
-          >
-            {todosAbiertos ? 'Contraer todo' : 'Expandir todo'}
-          </Button>
+          {calc.rubros.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setAbiertos(todosAbiertos ? new Set() : new Set(calc.rubros.map((r) => r.id)))}
+            >
+              {todosAbiertos ? 'Contraer todo' : 'Expandir todo'}
+            </Button>
+          )}
         </div>
 
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           {calc.rubros.map((r) => {
             const open = abiertos.has(r.id)
             return (
-              <div key={r.id} className="border-b border-border last:border-b-0">
+              <div key={r.id} className="border-b border-border">
                 <button
                   type="button"
                   onClick={() => toggle(r.id)}
@@ -208,10 +271,62 @@ function Resumen({ data, onOpenItem }: { data: PresupuestoDetalle; onOpenItem: (
                     <span className="tabular-nums">{fmtPct(r.incidencia)}</span>
                   </span>
                 </button>
-                {open && <TablaItems items={r.items} onOpenItem={onOpenItem} />}
+                {open && (
+                  <div className="border-t border-border bg-muted/30">
+                    <div className="flex flex-wrap items-center gap-1 px-2 py-1.5 sm:px-3">
+                      <span className="pl-1 text-xs text-muted-foreground">Rubro</span>
+                      <CampoNumero
+                        value={r.numero}
+                        vacioPermitido={false}
+                        ariaLabel="Número de rubro"
+                        className="w-16 text-left"
+                        onSave={(v) => {
+                          if (!Number.isInteger(v) || v! < 0) return toast.error('El número de rubro tiene que ser un entero')
+                          return editar({ op: 'rubro.editar', id: r.id, data: { numero: v! } })
+                        }}
+                      />
+                      <CampoTexto
+                        value={r.descripcion}
+                        requerido
+                        ariaLabel="Nombre del rubro"
+                        className="min-w-48 flex-1 font-medium"
+                        onSave={(v) => editar({ op: 'rubro.editar', id: r.id, data: { descripcion: v! } })}
+                      />
+                      <Button variant="ghost" size="sm" onClick={() => agregarItem(r.id)}>
+                        <Plus className="mr-1 h-4 w-4" />
+                        Ítem
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={() => eliminarRubro(r)}
+                        aria-label="Eliminar rubro"
+                        title="Eliminar rubro"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {r.items.length ? (
+                      <TablaItems items={r.items} onOpenItem={onOpenItem} />
+                    ) : (
+                      <p className="border-t border-border px-4 py-4 text-sm text-muted-foreground">
+                        Este rubro no tiene ítems todavía.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}
+          <button
+            type="button"
+            onClick={agregarRubro}
+            className="flex w-full items-center gap-2 border-b border-border px-4 py-2.5 text-sm text-muted-foreground transition hover:bg-accent/40 hover:text-foreground"
+          >
+            <Plus className="h-4 w-4" />
+            Agregar rubro
+          </button>
           <div className="flex items-center justify-between gap-3 bg-muted/50 px-4 py-3 text-sm font-semibold">
             <span>Total costo-costo</span>
             <span className="tabular-nums">{fmtARS(calc.total)}</span>
@@ -224,20 +339,16 @@ function Resumen({ data, onOpenItem }: { data: PresupuestoDetalle; onOpenItem: (
 
 function Dato({ k, v }: { k: string; v: string }) {
   return (
-    <div className="flex gap-1.5">
-      <dt className="text-muted-foreground">{k}:</dt>
-      <dd>{v}</dd>
-    </div>
+    <span className="flex gap-1.5">
+      <span className="text-muted-foreground">{k}:</span>
+      <span>{v}</span>
+    </span>
   )
 }
 
-const th = 'whitespace-nowrap px-3 py-2 text-left text-[11px] font-medium uppercase tracking-wide text-muted-foreground'
-const td = 'px-3 py-2 align-top'
-const num = 'text-right tabular-nums whitespace-nowrap'
-
 function TablaItems({ items, onOpenItem }: { items: PresupuestoDetalle['calc']['rubros'][number]['items']; onOpenItem: (id: string) => void }) {
   return (
-    <div className="overflow-x-auto border-t border-border bg-muted/30">
+    <div className="overflow-x-auto border-t border-border">
       <table className="w-full min-w-[960px] text-sm">
         <thead>
           <tr className="border-b border-border">
@@ -282,279 +393,133 @@ function TablaItems({ items, onOpenItem }: { items: PresupuestoDetalle['calc']['
 }
 
 /* ------------------------------------------------------------------ */
-/* Ítem: análisis de precio + cómputo métrico                           */
+/* Datos y parámetros                                                   */
 /* ------------------------------------------------------------------ */
 
-const TIPO_COLOR: Record<TipoInsumo, string> = {
-  MO: 'bg-blue-500/15 text-blue-700 dark:text-blue-300',
-  MAT: 'bg-green-500/15 text-green-700 dark:text-green-300',
-  EQ: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  SUB: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
-}
-
-function TipoBadge({ tipo }: { tipo: TipoInsumo }) {
-  return (
-    <span title={NOMBRES_TIPO[tipo]} className={cn('rounded px-1.5 py-0.5 text-[11px] font-bold tracking-wide', TIPO_COLOR[tipo])}>
-      {tipo}
-    </span>
+function ParametrosDialog({
+  open,
+  onOpenChange,
+  info,
+  presupuestoId,
+  onSaved,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  info: PresupuestoInfo
+  presupuestoId: string
+  onSaved: () => void
+}) {
+  const inicial = useCallback(
+    () => ({
+      nombre: info.nombre,
+      descripcion: info.descripcion ?? '',
+      ubicacion: info.ubicacion ?? '',
+      tipoCambio: fmtInput(info.tipoCambio),
+      // Shown as a percentage: 1,1 → 110
+      cargasSociales: fmtInput(Math.round(info.cargasSociales * 1e6) / 1e4),
+      coefAjuste: fmtInput(info.coefAjuste),
+      superficieCubierta: fmtInput(info.superficieCubierta),
+      superficiePredio: fmtInput(info.superficiePredio),
+    }),
+    [info]
   )
-}
-
-function ItemDialog({ presupuestoId, itemId, onClose }: { presupuestoId: string; itemId: string | null; onClose: () => void }) {
-  const [d, setD] = useState<ItemDetalle | null>(null)
-
+  const [f, setF] = useState(inicial)
+  const [guardando, setGuardando] = useState(false)
   useEffect(() => {
-    if (!itemId) return
-    let cancelled = false
-    setD(null)
-    api
-      .fetchPresupuestoItem(presupuestoId, itemId)
-      .then((r) => !cancelled && setD(r))
-      .catch(() => {
-        if (!cancelled) {
-          toast.error('No se pudo abrir el ítem')
-          onClose()
-        }
-      })
-    return () => {
-      cancelled = true
+    if (open) setF(inicial())
+  }, [open, inicial])
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    const n = (campo: string, s: string) => {
+      const v = parseNumeroAR(s)
+      if (v !== null && Number.isNaN(v)) throw new Error(`${campo}: «${s}» no es un número válido`)
+      return v
     }
-  }, [presupuestoId, itemId, onClose])
+    let data
+    try {
+      const cargas = n('Cargas sociales', f.cargasSociales)
+      const coef = n('Coeficiente de ajuste', f.coefAjuste)
+      if (!f.nombre.trim()) throw new Error('El nombre no puede quedar vacío')
+      data = {
+        nombre: f.nombre.trim(),
+        descripcion: f.descripcion.trim() || null,
+        ubicacion: f.ubicacion.trim() || null,
+        tipoCambio: n('Tipo de cambio', f.tipoCambio),
+        cargasSociales: (cargas ?? 0) / 100,
+        coefAjuste: coef ?? 1,
+        superficieCubierta: n('Superficie cubierta', f.superficieCubierta),
+        superficiePredio: n('Superficie del predio', f.superficiePredio),
+      }
+    } catch (err) {
+      toast.error((err as Error).message)
+      return
+    }
+    setGuardando(true)
+    try {
+      await api.editarPresupuesto(presupuestoId, { op: 'parametros', data })
+      toast.success('Datos guardados')
+      onSaved()
+      onOpenChange(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo guardar')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  const campo = (k: keyof typeof f, label: string, opts: { sufijo?: string; placeholder?: string; num?: boolean } = {}) => (
+    <div className="space-y-1.5">
+      <Label htmlFor={`par-${k}`}>{label}</Label>
+      <div className="flex items-center gap-2">
+        <Input
+          id={`par-${k}`}
+          value={f[k]}
+          inputMode={opts.num ? 'decimal' : undefined}
+          placeholder={opts.placeholder}
+          onChange={(e) => setF({ ...f, [k]: e.target.value })}
+          className={cn(opts.num && 'text-right tabular-nums')}
+        />
+        {opts.sufijo && <span className="shrink-0 text-sm text-muted-foreground">{opts.sufijo}</span>}
+      </div>
+    </div>
+  )
 
   return (
-    <Dialog open={itemId !== null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-4xl">
-        {!d ? (
-          <>
-            <DialogHeader>
-              <DialogTitle>Cargando ítem…</DialogTitle>
-              <DialogDescription className="sr-only">Análisis de precio y mediciones</DialogDescription>
-            </DialogHeader>
-            <div className="flex justify-center py-10">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          </>
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogDescription>
-                Rubro {d.item.rubroNumero} · {d.item.rubroDescripcion}
-              </DialogDescription>
-              <DialogTitle className="text-xl leading-snug">
-                {d.item.codigo} — {d.item.descripcion}
-              </DialogTitle>
-              {d.item.observaciones && <p className="text-sm text-muted-foreground">{d.item.observaciones}</p>}
-            </DialogHeader>
-
-            <div className="grid grid-cols-3 gap-2">
-              <Kpi label="Cantidad" value={`${fmtNum(d.cantidad)} ${d.item.unidad ?? ''}`} />
-              <Kpi label="Precio unitario" value={fmtARS(d.puTotal)} />
-              <Kpi label="Subtotal" value={fmtARS(d.subtotal)} accent />
-            </div>
-
-            <h3 className="mt-2 text-sm font-semibold">Análisis de precio unitario</h3>
-            <p className="-mt-1 text-xs text-muted-foreground">
-              Lo que lleva una unidad ({d.item.unidad || 'unidad'}) del ítem.
-            </p>
-            {d.apu.length ? (
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full min-w-[640px] text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className={th}>Tipo</th>
-                      <th className={th}>Insumo</th>
-                      <th className={th}>Un.</th>
-                      <th className={cn(th, 'text-right')}>Cantidad</th>
-                      <th className={cn(th, 'text-right')}>Precio</th>
-                      <th className={cn(th, 'text-right')}>Parcial</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {d.apu.map((l) => (
-                      <tr key={l.id} className="border-t border-border/60">
-                        <td className={td}><TipoBadge tipo={l.tipo} /></td>
-                        <td className={td}>
-                          {l.descripcion}
-                          <span className="ml-1.5 text-xs text-muted-foreground">{l.codigo}</span>
-                        </td>
-                        <td className={td}>{l.unidad ?? '–'}</td>
-                        <td className={cn(td, num)}>{fmtNumFino(l.cantidad)}</td>
-                        <td className={cn(td, num)}>{fmtARS(l.precioCalculo)}</td>
-                        <td className={cn(td, num)}>{fmtARS(l.parcial)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-muted/30 text-sm">
-                    {TIPOS_INSUMO.filter((t) => d.puPorTipo[t]).map((t) => (
-                      <tr key={t} className="border-t border-border/60">
-                        <td className={td} colSpan={5}>{NOMBRES_TIPO[t]}</td>
-                        <td className={cn(td, num)}>{fmtARS(d.puPorTipo[t])}</td>
-                      </tr>
-                    ))}
-                    <tr className="border-t border-border font-semibold">
-                      <td className={td} colSpan={5}>Costo unitario</td>
-                      <td className={cn(td, num)}>{fmtARS(d.puTotal)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Sin análisis de precio: el precio unitario es $ 0.</p>
-            )}
-
-            <h3 className="mt-2 text-sm font-semibold">Cómputo métrico</h3>
-            <p className="-mt-1 text-xs text-muted-foreground">
-              Parcial = Cant. × Largo × Ancho × Alto × Coef. (los vacíos no cuentan).
-            </p>
-            {d.mediciones.length ? (
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <table className="w-full min-w-[700px] text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className={th}>Sector</th>
-                      <th className={th}>Medición / criterio</th>
-                      {['Cant.', 'Largo', 'Ancho', 'Alto', 'Coef.', 'Parcial'].map((h) => (
-                        <th key={h} className={cn(th, 'text-right')}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {d.mediciones.map((m) => (
-                      <tr key={m.id} className="border-t border-border/60">
-                        <td className={td}>{m.sector || '–'}</td>
-                        <td className={td}>{m.criterio || '–'}</td>
-                        {([m.cant, m.largo, m.ancho, m.alto, m.coef] as (number | null)[]).map((v, i) => (
-                          <td key={i} className={cn(td, num)}>{fmtNum(v)}</td>
-                        ))}
-                        <td className={cn(td, num, 'font-medium')}>{fmtNum(m.parcial)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-muted/30">
-                    <tr className="border-t border-border font-semibold">
-                      <td className={td} colSpan={7}>Cantidad total</td>
-                      <td className={cn(td, num)}>
-                        {fmtNum(d.cantidad)} {d.item.unidad ?? ''}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Sin mediciones: la cantidad es 0.</p>
-            )}
-          </>
-        )}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-xl">
+        <form onSubmit={submit} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>Datos y parámetros</DialogTitle>
+            <DialogDescription>
+              Las cargas sociales se aplican a la mano de obra; el coeficiente de ajuste, a materiales, equipos y subcontratos
+              (por ejemplo 0,826 para quitar el IVA). Al guardar se recalcula todo el presupuesto.
+            </DialogDescription>
+          </DialogHeader>
+          {campo('nombre', 'Nombre')}
+          <div className="space-y-1.5">
+            <Label htmlFor="par-descripcion">Descripción</Label>
+            <Textarea id="par-descripcion" value={f.descripcion} rows={2} onChange={(e) => setF({ ...f, descripcion: e.target.value })} />
+          </div>
+          {campo('ubicacion', 'Ubicación')}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {campo('tipoCambio', 'Tipo de cambio', { sufijo: '$/US$', num: true })}
+            {campo('cargasSociales', 'Cargas sociales', { sufijo: '%', num: true })}
+            {campo('coefAjuste', 'Coef. de ajuste', { num: true, placeholder: '1' })}
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {campo('superficieCubierta', 'Superficie cubierta', { sufijo: 'm²', num: true })}
+            {campo('superficiePredio', 'Superficie del predio', { sufijo: 'm²', num: true })}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="submit" disabled={guardando}>
+              {guardando && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              Guardar
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/* Insumos                                                              */
-/* ------------------------------------------------------------------ */
-
-function Insumos({ id, cargas, coef }: { id: string; cargas: number; coef: number }) {
-  const [insumos, setInsumos] = useState<InsumoFila[] | null>(null)
-  const [q, setQ] = useState('')
-  const [tipo, setTipo] = useState<TipoInsumo | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    api
-      .fetchPresupuestoInsumos(id)
-      .then((r) => !cancelled && setInsumos(r))
-      .catch(() => !cancelled && toast.error('No se pudieron cargar los insumos'))
-    return () => {
-      cancelled = true
-    }
-  }, [id])
-
-  const visibles = useMemo(() => {
-    const t = q.trim().toLowerCase()
-    return (insumos ?? []).filter(
-      (i) => (!tipo || i.tipo === tipo) && (!t || i.descripcion.toLowerCase().includes(t) || i.codigo.toLowerCase().includes(t))
-    )
-  }, [insumos, q, tipo])
-
-  return (
-    <div className="mx-auto max-w-6xl space-y-4 px-4 py-6 sm:px-6">
-      <div>
-        <h1 className="text-2xl font-bold">Insumos y precios</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Precio de cálculo: mano de obra = base × (1 + {fmtPct(cargas)} de cargas sociales); materiales, equipos y
-          subcontratos = base × {fmtNumFino(coef)}.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="flex h-9 min-w-56 flex-1 items-center gap-2 rounded-lg border border-border bg-background px-3 text-sm sm:max-w-xs">
-          <Search className="h-4 w-4 text-muted-foreground" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar insumo o código"
-            className="min-w-0 flex-1 bg-transparent outline-none"
-          />
-        </label>
-        {[null, ...TIPOS_INSUMO].map((t) => (
-          <button
-            key={t ?? 'todos'}
-            type="button"
-            onClick={() => setTipo(t)}
-            className={cn(
-              'h-8 rounded-full border px-3 text-xs font-medium transition',
-              tipo === t ? 'border-primary bg-primary text-primary-foreground' : 'border-border hover:bg-accent'
-            )}
-          >
-            {t ? NOMBRES_TIPO[t] : 'Todos'}
-          </button>
-        ))}
-      </div>
-
-      {!insumos ? (
-        <div className="flex justify-center py-10">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full min-w-[900px] text-sm">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className={th}>Código</th>
-                <th className={th}>Descripción</th>
-                <th className={th}>Un.</th>
-                <th className={th}>Tipo</th>
-                <th className={cn(th, 'text-right')}>Precio base</th>
-                <th className={cn(th, 'text-right')}>Precio de cálculo</th>
-                <th className={cn(th, 'text-right')}>Usado en</th>
-                <th className={th}>Fuente</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibles.map((i) => (
-                <Fragment key={i.id}>
-                  <tr className="border-t border-border/60 hover:bg-accent/30">
-                    <td className={cn(td, 'font-medium')}>{i.codigo}</td>
-                    <td className={td}>{i.descripcion}</td>
-                    <td className={td}>{i.unidad ?? '–'}</td>
-                    <td className={td}><TipoBadge tipo={i.tipo} /></td>
-                    <td className={cn(td, num)}>{fmtARS(i.precioBase)}</td>
-                    <td className={cn(td, num, 'font-medium')}>{fmtARS(i.precioCalculo)}</td>
-                    <td className={cn(td, num, 'text-muted-foreground')}>{i.usos} {i.usos === 1 ? 'ítem' : 'ítems'}</td>
-                    <td className={cn(td, 'max-w-72 text-xs text-muted-foreground')}>{i.fuente}</td>
-                  </tr>
-                </Fragment>
-              ))}
-              {visibles.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="py-8 text-center text-sm text-muted-foreground">Ningún insumo coincide.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
   )
 }

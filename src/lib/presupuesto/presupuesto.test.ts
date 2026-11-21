@@ -147,3 +147,17 @@ test('un archivo que no es presupuesto da un error claro', async () => {
 test('un archivo que no es Excel da un error claro', async () => {
   await assert.rejects(leerPlanilla(new TextEncoder().encode('hola')), FormatoInvalido)
 })
+
+test('números escritos a la argentina', async () => {
+  const { parseNumeroAR } = await import('./format.ts')
+  assert.equal(parseNumeroAR('1.234,5'), 1234.5)
+  assert.equal(parseNumeroAR('1234,5'), 1234.5)
+  assert.equal(parseNumeroAR('1234.5'), 1234.5)
+  assert.equal(parseNumeroAR('0,15'), 0.15)
+  assert.equal(parseNumeroAR('0.15'), 0.15)
+  assert.equal(parseNumeroAR('1.500'), 1500)
+  assert.equal(parseNumeroAR('1.500.000'), 1500000)
+  assert.equal(parseNumeroAR('$ 2.500.000,00'), 2500000)
+  assert.equal(parseNumeroAR(''), null)
+  assert.ok(Number.isNaN(parseNumeroAR('abc')))
+})
