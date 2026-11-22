@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Calculator, ChevronRight, Link2Off, Loader2, MoreHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,10 @@ import type { PresupuestoResumen } from '@/lib/presupuesto/types'
 import { fmtARS, fmtUSD } from '@/lib/presupuesto/format'
 import { useWorkspace } from '@/lib/workspace-store'
 
+/** Special choices in the project card's selector. */
+const NUEVO = '__nuevo__'
+const ARCHIVO = '__archivo__'
+
 /** Project databases get the budget block: named like "Proyectos" or with a "Presupuesto" column. */
 export function admitePresupuesto(db: DatabaseDef): boolean {
   return /proyecto/i.test(db.title) || db.properties.some((p) => p.name.trim().toLowerCase() === 'presupuesto')
@@ -22,7 +26,7 @@ export function admitePresupuesto(db: DatabaseDef): boolean {
  * lives in Inicio › Cómputo y presupuesto; here it's linked to the project
  * (same record: editing it here or there is the same).
  */
-export function PresupuestoBlock({ rowId }: { rowId: string }) {
+export function PresupuestoBlock({ rowId, titulo }: { rowId: string; titulo?: string }) {
   const { ws } = useDb()
   const openPresupuesto = useWorkspace((s) => s.openPresupuesto)
   const openPresupuestoId = useWorkspace((s) => s.openPresupuestoId)
@@ -30,15 +34,17 @@ export function PresupuestoBlock({ rowId }: { rowId: string }) {
   const [disponibles, setDisponibles] = useState<api.CypResumen[] | null>(null)
   const [elegido, setElegido] = useState('')
   const [trabajando, setTrabajando] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const cargar = useCallback(async () => {
     try {
       const p = await api.fetchRowPresupuesto(rowId)
       setState({ loading: false, presupuesto: p })
       if (!p) {
-        const lista = (await api.fetchPresupuestos()).filter((c) => !c.proyecto)
+        const lista = await api.fetchPresupuestos()
         setDisponibles(lista)
-        setElegido((e) => (lista.some((c) => c.id === e) ? e : (lista[0]?.id ?? '')))
+        const libres = lista.filter((c) => !c.proyecto)
+        setElegido((e) => (libres.some((c) => c.id === e) || e === NUEVO || e === ARCHIVO ? e : (libres[0]?.id ?? NUEVO)))
       }
     } catch {
       setState({ loading: false, presupuesto: null })
@@ -53,8 +59,19 @@ export function PresupuestoBlock({ rowId }: { rowId: string }) {
 
   async function vincular() {
     if (!elegido) return
+    if (elegido === ARCHIVO) {
+      inputRef.current?.click()
+      return
+    }
     setTrabajando(true)
     try {
+      if (elegido === NUEVO) {
+        const { id } = await api.crearPresupuesto(titulo?.trim() ? `Cómputo y presupuesto – ${titulo.trim()}` : undefined)
+        await api.vincularPresupuesto(rowId, id)
+        void ws.refresh()
+        openPresupuesto(id)
+        return
+      }
       await api.vincularPresupuesto(rowId, elegido)
       toast.success('Cómputo y presupuesto vinculado al proyecto')
       void ws.refresh() // the "Presupuesto" column and its value changed
@@ -63,6 +80,28 @@ export function PresupuestoBlock({ rowId }: { rowId: string }) {
       toast.error(err instanceof Error ? err.message : 'No se pudo vincular')
     } finally {
       setTrabajando(false)
+    }
+  }
+
+  /** Imports a file straight into this project (.xlsx or the CyP app's .json). */
+  async function importar(file: File) {
+    setTrabajando(true)
+    try {
+      const { id, avisos } = await api.importPresupuesto(rowId, file)
+      toast.success('Cómputo y presupuesto importado y vinculado')
+      if (avisos.length) {
+        toast.warning(`${avisos.length} aviso${avisos.length > 1 ? 's' : ''} al importar`, {
+          description: avisos.slice(0, 3).join('\n') + (avisos.length > 3 ? '\n…' : ''),
+          duration: 12000,
+        })
+      }
+      void ws.refresh()
+      openPresupuesto(id)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo importar', { duration: 10000 })
+    } finally {
+      setTrabajando(false)
+      if (inputRef.current) inputRef.current.value = ''
     }
   }
 
@@ -124,10 +163,6 @@ export function PresupuestoBlock({ rowId }: { rowId: string }) {
             <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
           </span>
         </button>
-      ) : !disponibles?.length ? (
-        <p className="rounded-lg border border-dashed border-border px-4 py-4 text-sm text-muted-foreground">
-          No hay cómputos y presupuestos sin proyecto. Creá o importá uno en <b>Inicio › Cómputo y presupuesto</b> y vinculalo acá.
-        </p>
       ) : (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <select
@@ -136,18 +171,49 @@ export function PresupuestoBlock({ rowId }: { rowId: string }) {
             aria-label="Cómputo y presupuesto para este proyecto"
             className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm font-medium focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
-            {disponibles.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
+            {(disponibles ?? []).some((c) => !c.proyecto) && (
+              <optgroup label="Sin proyecto">
+                {(disponibles ?? [])
+                  .filter((c) => !c.proyecto)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                    </option>
+                  ))}
+              </optgroup>
+            )}
+            <optgroup label="Nuevo">
+              <option value={NUEVO}>+ Crear CyP nuevo para este proyecto</option>
+              <option value={ARCHIVO}>Importar Excel o JSON…</option>
+            </optgroup>
+            {(disponibles ?? []).some((c) => c.proyecto) && (
+              <optgroup label="Ya vinculados a otro proyecto">
+                {(disponibles ?? [])
+                  .filter((c) => c.proyecto)
+                  .map((c) => (
+                    <option key={c.id} value={c.id} disabled>
+                      {c.nombre} — {c.proyecto!.titulo}
+                    </option>
+                  ))}
+              </optgroup>
+            )}
           </select>
           <Button size="sm" onClick={() => void vincular()} disabled={trabajando || !elegido}>
             {trabajando && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-            Importar CyP
+            {elegido === NUEVO ? 'Crear CyP' : elegido === ARCHIVO ? 'Elegir archivo' : 'Importar CyP'}
           </Button>
         </div>
       )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".xlsx,.json,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) void importar(f)
+        }}
+      />
     </section>
   )
 }

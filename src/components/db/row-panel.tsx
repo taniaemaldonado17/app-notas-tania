@@ -187,7 +187,7 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
           <AddPropertyButton db={db} label="Agregar propiedad" className="h-8 rounded px-2 hover:bg-accent" />
         </div>
 
-        {admitePresupuesto(db) && <PresupuestoBlock rowId={row.id} />}
+        {admitePresupuesto(db) && <PresupuestoBlock rowId={row.id} titulo={row.title} />}
 
         <div className="border-t border-border pt-4">
           {detail ? (
