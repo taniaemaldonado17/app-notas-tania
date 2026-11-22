@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
 import { toast } from 'sonner'
-import { Loader2, NotebookPen } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
+import { MaltaLogo } from '@/components/malta-logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -95,16 +96,10 @@ export function AuthScreen({ inviteToken, notice, onSignedIn }: Props = {}) {
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="w-full max-w-md rounded-xl border border-white/10 bg-card/95 p-8 shadow-2xl backdrop-blur">
           <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <NotebookPen className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-foreground">
-                Registro de tareas diarias
-              </h1>
-              <p className="text-xs text-muted-foreground">
-                Notas de trabajo en estilo Notion
-              </p>
+            <MaltaLogo className="h-10 w-14 shrink-0 text-foreground" />
+            <div className="leading-tight">
+              <h1 className="text-2xl font-bold tracking-wide text-foreground">MALTA</h1>
+              <p className="text-sm text-muted-foreground">workspace</p>
             </div>
           </div>
 

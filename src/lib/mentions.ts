@@ -137,7 +137,7 @@ export async function notifyNewMentions(opts: {
   <p style="margin-top:20px"><a href="${esc(opts.link)}" style="background:#222;color:#fff;padding:9px 16px;border-radius:6px;text-decoration:none">Abrir en la app</a></p>
 </div>`
       try {
-        await sendMail({ to: u.email, subject, html, text, fromName: `${actorName} (Notas)`, replyTo: actor?.email })
+        await sendMail({ to: u.email, subject, html, text, fromName: `${actorName} (MALTA)`, replyTo: actor?.email })
       } catch (err) {
         console.error('[mentions] email to', u.email, 'failed', err)
       }

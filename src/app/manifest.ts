@@ -3,13 +3,13 @@ import type { MetadataRoute } from 'next'
 /** Installable app ("Agregar a pantalla de inicio"): opens full screen and works offline. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Registro de tareas diarias',
-    short_name: 'Notas',
-    description: 'Notas, tableros y administración de obras.',
+    name: 'MALTA Workspace',
+    short_name: 'MALTA',
+    description: 'Administración de obras de arquitectura.',
     start_url: '/',
     scope: '/',
     display: 'standalone',
-    background_color: '#191919',
+    background_color: '#eeeeee',
     theme_color: '#191919',
     lang: 'es-AR',
     icons: [

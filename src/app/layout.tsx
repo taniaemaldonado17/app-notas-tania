@@ -18,12 +18,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Registro de tareas diarias",
-  description: "Notas de trabajo en estilo Notion. Tablero Kanban, listas de tareas y registro diario.",
-  keywords: ["Notion", "Kanban", "Tareas", "Notas", "Trabajo"],
-  authors: [{ name: "Registro de tareas diarias" }],
+  title: "MALTA",
+  description: "Administración de obras de arquitectura: proyectos, tareas, cómputo y presupuesto, certificaciones.",
+  keywords: ["Arquitectura", "Obras", "Presupuesto", "Certificación", "Tareas"],
+  authors: [{ name: "MALTA Workspace" }],
   // Installed on the iPad home screen: full screen, works offline.
-  appleWebApp: { capable: true, title: "Notas", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "MALTA", statusBarStyle: "default" },
 };
 
 // iPad browsers default to "desktop mode" and lay pages out wider than the

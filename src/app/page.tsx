@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
-import { Loader2, NotebookPen } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
+import { MaltaLogo } from '@/components/malta-logo'
 import { AuthScreen } from '@/components/auth-screen'
 import { TopBar, CoverBanner } from '@/components/top-bar'
 import { Board } from '@/components/board'
@@ -418,8 +419,8 @@ function Workspace({
       <footer className="mt-auto border-t border-border bg-background/80 px-4 py-3 text-center text-[11px] text-muted-foreground">
         <div className="mx-auto flex max-w-5xl items-center justify-center">
           <span className="flex items-center gap-1">
-            <NotebookPen className="h-3 w-3" />
-            Registro de tareas diarias · tablero Kanban
+            <MaltaLogo className="h-3 w-4" />
+            MALTA workspace
           </span>
         </div>
       </footer>

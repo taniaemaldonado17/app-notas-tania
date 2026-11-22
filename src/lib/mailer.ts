@@ -21,7 +21,7 @@ export async function sendMail(mail: { to: string; subject: string; html: string
     service: 'gmail',
     auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD!.replace(/\s+/g, '') },
   })
-  const fromName = (mail.fromName ?? 'Notas').replace(/["<>]/g, '')
+  const fromName = (mail.fromName ?? 'MALTA').replace(/["<>]/g, '')
   await transport.sendMail({
     from: `"${fromName}" <${process.env.GMAIL_USER}>`,
     to: mail.to,
