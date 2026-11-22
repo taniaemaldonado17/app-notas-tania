@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   FileText,
+  House,
   LogOut,
   MoreHorizontal,
   Users,
@@ -33,6 +34,8 @@ type Props = {
   pages: PageSummary[]
   currentPageId: string | null
   onSelectPage: (pageId: string) => void
+  /** Show the home screen (Inicio). */
+  onGoHome: () => void
   onOpenCard: (pageId: string, cardId: string) => void
   onCreatePage: (type?: NewPageType) => void
   onRenamePage: (pageId: string, title: string) => void
@@ -46,6 +49,7 @@ export function AppSidebar({
   pages,
   currentPageId,
   onSelectPage,
+  onGoHome,
   onOpenCard,
   onCreatePage,
   onRenamePage,
@@ -148,6 +152,21 @@ export function AppSidebar({
         </div>
 
         <nav className="notion-scroll flex-1 overflow-y-auto px-2 pb-3">
+          <button
+            type="button"
+            onClick={() => {
+              onGoHome()
+              afterNavigate()
+            }}
+            className={cn(
+              'mb-1 flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm hover:bg-sidebar-accent',
+              currentPageId === null ? 'bg-sidebar-accent font-medium text-foreground' : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <House className="h-4 w-4" />
+            Inicio
+          </button>
+
           {/* Favourites */}
           {hasFavorites && (
             <SectionHeader
@@ -186,8 +205,7 @@ export function AppSidebar({
             </ul>
           )}
 
-          {/* Own pages (hidden for collaborators who have none yet) */}
-          {(ownPages.length > 0 || sharedPages.length === 0) && (
+          {/* Own pages (private unless shared) */}
           <SectionHeader
             label="Páginas"
             open={pagesOpen}
@@ -196,7 +214,7 @@ export function AppSidebar({
               <NewPageMenu onCreate={onCreatePage}>
               <button
                 type="button"
-                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-sidebar-accent hover:text-foreground focus-visible:opacity-100 group-hover/section:opacity-100"
+                className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground opacity-0 hover:bg-sidebar-accent hover:text-foreground focus-visible:opacity-100 group-hover/section:opacity-100 [@media(hover:none)]:opacity-100"
                 aria-label="Nueva página"
                 title="Nueva página"
               >
@@ -205,6 +223,8 @@ export function AppSidebar({
               </NewPageMenu>
             }
           />
+          {pagesOpen && ownPages.length === 0 && (
+            <p className="px-2 py-1 text-xs text-muted-foreground">Las páginas que crees van acá. Solo las ves vos hasta que las compartas.</p>
           )}
           {pagesOpen && ownPages.length > 0 && (
             <ul className="space-y-px">

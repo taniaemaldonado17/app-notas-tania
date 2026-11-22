@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { getAuthUserId, isPageOwner } from '@/lib/auth-helpers'
+import { quitarAcceso } from '@/lib/acceso'
 
 /**
  * Remove someone's access to a shared page.
@@ -23,20 +23,8 @@ export async function DELETE(
     return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
   }
 
-  const removed = await db.pageMember.deleteMany({
-    where: { pageId: id, userId: targetId },
-  })
-  if (removed.count === 0) {
+  if (!(await quitarAcceso(id, targetId))) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
-
-  // Their personal favourites of this page and its cards no longer apply.
-  await db.favorite.deleteMany({
-    where: {
-      userId: targetId,
-      OR: [{ pageId: id }, { card: { column: { pageId: id } } }],
-    },
-  })
-
   return NextResponse.json({ ok: true })
 }

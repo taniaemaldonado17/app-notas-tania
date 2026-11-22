@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
@@ -14,13 +14,15 @@ import { SearchDialog } from '@/components/search-dialog'
 import { ShareDialog } from '@/components/share-dialog'
 import { DatabasesWorkspace } from '@/components/db/databases-workspace'
 import { SincronizadorObra } from '@/components/sincronizador-obra'
+import { Inicio } from '@/components/inicio'
 import * as api from '@/lib/api'
 import type { NewPageType, Page, PageSummary } from '@/lib/types'
 import { useWorkspace } from '@/lib/workspace-store'
 import { useWorkspacePage } from '@/hooks/use-workspace-page'
 
-const LAST_PAGE_KEY = 'notas:lastPageId'
 const SIDEBAR_KEY = 'notas:sidebarOpen'
+/** Key in history.state for in-app navigation (page id, 'inicio' or 'base'). */
+const HISTORIAL = 'malta'
 
 function readStorage(key: string): string | null {
   try {
@@ -105,16 +107,16 @@ function AppShell() {
         }
         if (cancelled) return
         setPages(list)
-        const last = readStorage(LAST_PAGE_KEY)
-        setPageId(list.some((p) => p.id === last) ? last : list[0].id)
+        // Opens on Inicio (latest changes); links below go straight to a page.
 
         // Links from mention emails to a card: /?page=<id>&card=<id>
         const params = new URLSearchParams(window.location.search)
         const pageParam = params.get('page')
         const cardParam = params.get('card')
         if (pageParam || cardParam) {
-          window.history.replaceState(null, '', window.location.pathname)
+          window.history.replaceState({ [HISTORIAL]: 'inicio' }, '', window.location.pathname)
           if (pageParam && list.some((p) => p.id === pageParam)) {
+            window.history.pushState({ [HISTORIAL]: pageParam }, '')
             setPageId(pageParam)
             if (cardParam) useWorkspace.getState().openCard(cardParam)
           } else if (pageParam) {
@@ -125,10 +127,11 @@ function AppShell() {
         // Links copied from a database row: /?row=<id>
         const rowParam = params.get('row')
         if (rowParam) {
-          window.history.replaceState(null, '', window.location.pathname)
+          window.history.replaceState({ [HISTORIAL]: 'inicio' }, '', window.location.pathname)
           try {
             const detail = await api.fetchRowDetail(rowParam)
             if (!cancelled && detail.pageId) {
+              window.history.pushState({ [HISTORIAL]: detail.pageId }, '')
               setPageId(detail.pageId)
               useWorkspace.getState().openRow(rowParam)
             }
@@ -146,9 +149,37 @@ function AppShell() {
     }
   }, [])
 
+  // Browser back (also the mouse's back button) moves inside the app instead
+  // of leaving it: first it closes what's open on top (budget, row, card),
+  // then goes to the previous page, and on Inicio it stays there.
+  const pageIdRef = useRef<string | null>(null)
   useEffect(() => {
-    if (pageId) writeStorage(LAST_PAGE_KEY, pageId)
+    pageIdRef.current = pageId
   }, [pageId])
+  useEffect(() => {
+    window.history.replaceState({ [HISTORIAL]: 'base' }, '')
+    window.history.pushState({ [HISTORIAL]: 'inicio' }, '')
+    function onPop(e: PopStateEvent) {
+      const st = useWorkspace.getState()
+      if (st.openPresupuestoId || st.selectedRowId || st.selectedCardId) {
+        st.closePresupuesto()
+        st.closeRow()
+        st.closeCard()
+        window.history.pushState({ [HISTORIAL]: pageIdRef.current ?? 'inicio' }, '')
+        return
+      }
+      const destino = (e.state as Record<string, string> | null)?.[HISTORIAL]
+      if (!destino || destino === 'base') {
+        // Bottom of the app's history: stay on Inicio instead of leaving.
+        window.history.pushState({ [HISTORIAL]: 'inicio' }, '')
+        setPageId(null)
+        return
+      }
+      setPageId(destino === 'inicio' ? null : destino)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
 
   const reloadPages = useCallback(async () => {
     try {
@@ -179,12 +210,14 @@ function AppShell() {
     }
   }, [refresh, reloadPages])
 
+  /** Goes to a page, or to Inicio with null; adds a step to the back button. */
   const selectPage = useCallback(
-    (id: string) => {
+    (id: string | null) => {
       if (id !== pageId) {
         closeCard()
         closeRow()
         setSearchQuery('')
+        window.history.pushState({ [HISTORIAL]: id ?? 'inicio' }, '')
       }
       setPageId(id)
     },
@@ -269,7 +302,7 @@ function AppShell() {
       await api.deletePage(id)
       const remaining = pages.filter((p) => p.id !== id)
       setPages(remaining)
-      if (id === pageId) selectPage(remaining[0].id)
+      if (id === pageId) selectPage(null)
       useWorkspace.getState().bumpFavorites()
       toast.success('Página eliminada')
     } catch {
@@ -282,10 +315,7 @@ function AppShell() {
     const remaining = (pages ?? []).filter((p) => p.id !== id)
     setPages(remaining)
     useWorkspace.getState().bumpFavorites()
-    if (id === pageId) {
-      if (remaining.length > 0) selectPage(remaining[0].id)
-      else window.location.reload()
-    }
+    if (id === pageId) selectPage(null)
   }
 
   async function handleLeavePage(id: string) {
@@ -313,6 +343,7 @@ function AppShell() {
         pages={pages ?? []}
         currentPageId={pageId}
         onSelectPage={selectPage}
+        onGoHome={() => selectPage(null)}
         onOpenCard={openCardOnPage}
         onCreatePage={handleCreatePage}
         onRenamePage={handleRenamePage}
@@ -337,7 +368,15 @@ function AppShell() {
           onLeft={() => dropPage(pageId)}
         />
       )}
-      {currentSummary?.kind === 'databases' && pageId ? (
+      {!pageId ? (
+        <Inicio
+          pagesVersion={pages?.length ?? 0}
+          onSelectPage={selectPage}
+          onOpenCard={openCardOnPage}
+          onOpenRow={openRowOnPage}
+          onAccesoChanged={reloadPages}
+        />
+      ) : currentSummary?.kind === 'databases' ? (
         <DatabasesWorkspace
           key={pageId}
           pageId={pageId}

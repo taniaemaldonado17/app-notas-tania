@@ -625,3 +625,46 @@ export async function fetchCertificado(
   )
   return data.certificado
 }
+
+/* ----------------------------- Inicio y acceso ----------------------------- */
+
+export type InicioPagina = {
+  id: string
+  title: string
+  icon: string | null
+  kind: 'board' | 'databases'
+  propia: boolean
+  ultimaActividad: string
+  /** Who made the last change ("vos" for the current user), if known. */
+  ultimoAutor: string | null
+}
+
+export type InicioActividad = {
+  tipo: 'tarjeta' | 'fila'
+  id: string
+  titulo: string
+  icono: string | null
+  pageId: string
+  pagina: string
+  paginaIcono: string | null
+  /** Column (cards) or database (rows). */
+  lugar: string
+  at: string
+}
+
+export async function fetchInicio(): Promise<{ paginas: InicioPagina[]; actividad: InicioActividad[] }> {
+  return jsonFetch(`${API_BASE}/inicio`)
+}
+
+export type AccesoData = {
+  paginas: { id: string; title: string; icon: string | null }[]
+  personas: { id: string; name: string | null; email: string; paginas: string[] }[]
+}
+
+export async function fetchAcceso(): Promise<AccesoData> {
+  return jsonFetch(`${API_BASE}/acceso`)
+}
+
+export async function cambiarAcceso(userId: string, pageId: string, acceso: boolean): Promise<void> {
+  await jsonFetch(`${API_BASE}/acceso`, { method: 'POST', body: JSON.stringify({ userId, pageId, acceso }) })
+}
