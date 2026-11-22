@@ -134,7 +134,7 @@ export function CurvaAvance({ presupuestoId, contrato, onSaved }: { presupuestoI
                         type="button"
                         aria-label="Quitar período"
                         onClick={() => setFilas(filas.filter((_, j) => j !== i))}
-                        className="rounded p-1.5 text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100"
+                        className="rounded p-1.5 text-muted-foreground opacity-0 hover:text-destructive group-hover:opacity-100 [@media(hover:none)]:opacity-100"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>

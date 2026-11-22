@@ -77,7 +77,7 @@ export function CertificadoDetalle({
 
   return (
     <Dialog open={certificadoId !== null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-5xl">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto p-4 sm:max-w-5xl lg:p-6">
         {!c ? (
           <>
             <DialogHeader>
@@ -127,7 +127,7 @@ export function CertificadoDetalle({
             </div>
 
             <div className="overflow-x-auto rounded-lg border border-border">
-              <table className="w-full min-w-[760px] text-sm">
+              <table className="w-full min-w-[720px] text-sm">
                 <thead className="bg-muted/50">
                   <tr>
                     <th className={th}>Ítem</th>

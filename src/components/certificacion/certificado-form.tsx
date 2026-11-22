@@ -64,6 +64,9 @@ export function CertificadoForm({
   )
 }
 
+/** Amount columns: only from 1024 px. In iPad portrait the footer shows the period totals. */
+const soloAncho = 'hidden lg:table-cell'
+
 function Cuerpo({
   presupuestoId,
   contrato,
@@ -226,17 +229,17 @@ function Cuerpo({
       </DialogHeader>
 
       <div className="notion-scroll min-h-0 flex-1 overflow-auto">
-        <table className="w-full min-w-[1000px] text-sm">
+        <table className="w-full min-w-[680px] text-sm lg:min-w-[1000px]">
           <thead className="sticky top-0 z-10 bg-background shadow-[0_1px_0_var(--border)]">
             <tr>
               <th className={th}>Ítem</th>
-              <th className={th}>Descripción</th>
+              <th className={cn(th, 'min-w-44')}>Descripción</th>
               <th className={cn(th, 'text-right')}>Cant. contrato</th>
-              <th className={cn(th, 'text-right')}>Importe</th>
+              <th className={cn(th, soloAncho, 'text-right')}>Importe</th>
               <th className={cn(th, 'text-right')}>Anterior</th>
               <th className={cn(th, 'w-40 text-right')}>Presente</th>
               <th className={cn(th, 'text-right')}>Acumulado</th>
-              <th className={cn(th, 'text-right')}>Importe presente</th>
+              <th className={cn(th, soloAncho, 'text-right')}>Importe presente</th>
             </tr>
           </thead>
           <tbody>
@@ -260,7 +263,7 @@ function Cuerpo({
                       <td className={cn(td, num)}>
                         {fmtNum(it.cantidad)} {it.unidad ?? ''}
                       </td>
-                      <td className={cn(td, num, 'text-muted-foreground')}>{fmtARS(it.importe)}</td>
+                      <td className={cn(td, num, soloAncho, 'text-muted-foreground')}>{fmtARS(it.importe)}</td>
                       <td className={cn(td, num, 'text-muted-foreground')}>{fmtPct(ant)}</td>
                       <td className="px-2 py-1">
                         <div className="flex items-center justify-end gap-1">
@@ -287,7 +290,7 @@ function Cuerpo({
                         </div>
                       </td>
                       <td className={cn(td, num, acum > 1 + 1e-9 && 'font-semibold text-destructive')}>{fmtPct(acum)}</td>
-                      <td className={cn(td, num, presentes[it.id] && 'font-medium')}>{linea?.importePresente ? fmtARS(linea.importePresente) : '–'}</td>
+                      <td className={cn(td, num, soloAncho, presentes[it.id] && 'font-medium')}>{linea?.importePresente ? fmtARS(linea.importePresente) : '–'}</td>
                     </tr>
                   )
                 })}

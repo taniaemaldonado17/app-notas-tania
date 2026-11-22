@@ -354,19 +354,22 @@ function Dato({ k, v }: { k: string; v: string }) {
   )
 }
 
+/** P.U. breakdown columns: only from 1024 px (iPad portrait shows totals; the breakdown is in the item sheet). */
+const desglose = 'hidden lg:table-cell'
+
 function TablaItems({ items, onOpenItem }: { items: PresupuestoDetalle['calc']['rubros'][number]['items']; onOpenItem: (id: string) => void }) {
   return (
     <div className="overflow-x-auto border-t border-border">
-      <table className="w-full min-w-[960px] text-sm">
+      <table className="w-full min-w-[640px] text-sm lg:min-w-[960px]">
         <thead>
           <tr className="border-b border-border">
             <th className={th}>Ítem</th>
-            <th className={th}>Descripción</th>
+            <th className={cn(th, 'min-w-48')}>Descripción</th>
             <th className={th}>Un.</th>
             <th className={cn(th, 'text-right')}>Cantidad</th>
-            <th className={cn(th, 'text-right')}>P.U. mat.</th>
-            <th className={cn(th, 'text-right')}>P.U. M.O.</th>
-            <th className={cn(th, 'text-right')}>P.U. equipos</th>
+            <th className={cn(th, desglose, 'text-right')}>P.U. mat.</th>
+            <th className={cn(th, desglose, 'text-right')}>P.U. M.O.</th>
+            <th className={cn(th, desglose, 'text-right')}>P.U. equipos</th>
             <th className={cn(th, 'text-right')}>P.U. total</th>
             <th className={cn(th, 'text-right')}>Subtotal</th>
             <th className={cn(th, 'text-right')}>Incid.</th>
@@ -386,9 +389,9 @@ function TablaItems({ items, onOpenItem }: { items: PresupuestoDetalle['calc']['
               </td>
               <td className={td}>{i.unidad ?? '–'}</td>
               <td className={cn(td, num)}>{fmtNum(i.cantidad)}</td>
-              <td className={cn(td, num)}>{fmtARS(i.puMat)}</td>
-              <td className={cn(td, num)}>{fmtARS(i.puMo)}</td>
-              <td className={cn(td, num)}>{fmtARS(i.puEq)}</td>
+              <td className={cn(td, num, desglose)}>{fmtARS(i.puMat)}</td>
+              <td className={cn(td, num, desglose)}>{fmtARS(i.puMo)}</td>
+              <td className={cn(td, num, desglose)}>{fmtARS(i.puEq)}</td>
               <td className={cn(td, num)}>{fmtARS(i.puTotal)}</td>
               <td className={cn(td, num, 'font-semibold')}>{fmtARS(i.subtotal)}</td>
               <td className={cn(td, num, 'text-muted-foreground')}>{fmtPct(i.incidencia)}</td>

@@ -65,7 +65,7 @@ export function ItemDialog({
 
   return (
     <Dialog open={itemId !== null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-5xl">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto p-4 sm:max-w-5xl lg:p-6">
         {!d ? (
           <>
             <DialogHeader>
@@ -150,7 +150,7 @@ function BotonBorrar({ onClick, label }: { onClick: () => void; label: string })
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="rounded p-1.5 text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive focus:opacity-100 group-hover:opacity-100"
+      className="rounded p-1.5 text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive focus:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
     >
       <Trash2 className="h-3.5 w-3.5" />
     </button>
@@ -176,13 +176,13 @@ function Analisis({ d, presupuestoId, editar }: { d: ItemDetalle; presupuestoId:
         />
       </div>
       <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full min-w-[680px] text-sm">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-muted/50">
             <tr>
               <th className={th}>Tipo</th>
               <th className={th}>Insumo</th>
               <th className={th}>Un.</th>
-              <th className={cn(th, 'w-32 text-right')}>Cantidad</th>
+              <th className={cn(th, 'w-28 text-right')}>Cantidad</th>
               <th className={cn(th, 'text-right')}>Precio</th>
               <th className={cn(th, 'text-right')}>Parcial</th>
               <th className="w-8" />
@@ -349,13 +349,13 @@ function Mediciones({ d, editar }: { d: ItemDetalle; editar: Editar }) {
         </Button>
       </div>
       <div className="overflow-x-auto rounded-lg border border-border">
-        <table className="w-full min-w-[820px] text-sm">
+        <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-muted/50">
             <tr>
-              <th className={cn(th, 'w-40')}>Sector</th>
+              <th className={cn(th, 'w-28 lg:w-40')}>Sector</th>
               <th className={th}>Medición / criterio</th>
               {FACTORES.map((f) => (
-                <th key={f.k} className={cn(th, 'w-20 text-right')}>{f.label}</th>
+                <th key={f.k} className={cn(th, 'w-[4.5rem] text-right lg:w-20')}>{f.label}</th>
               ))}
               <th className={cn(th, 'text-right')}>Parcial</th>
               <th className="w-8" />

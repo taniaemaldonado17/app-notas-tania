@@ -102,17 +102,17 @@ export function InsumosTab({
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-border bg-card">
-          <table className="w-full min-w-[1080px] text-sm">
+          <table className="w-full min-w-[860px] text-sm lg:min-w-[1080px]">
             <thead className="bg-muted/50">
               <tr>
                 <th className={cn(th, 'w-28')}>Código</th>
-                <th className={th}>Descripción</th>
+                <th className={cn(th, 'min-w-52')}>Descripción</th>
                 <th className={cn(th, 'w-20')}>Un.</th>
-                <th className={cn(th, 'w-24')}>Tipo</th>
-                <th className={cn(th, 'w-36 text-right')}>Precio base</th>
+                <th className={cn(th, 'w-20 lg:w-24')}>Tipo</th>
+                <th className={cn(th, 'w-32 text-right lg:w-36')}>Precio base</th>
                 <th className={cn(th, 'text-right')}>Precio de cálculo</th>
                 <th className={cn(th, 'text-right')}>Usado en</th>
-                <th className={cn(th, 'w-64')}>Fuente</th>
+                <th className={cn(th, 'hidden w-64 lg:table-cell')}>Fuente</th>
                 <th className="w-8" />
               </tr>
             </thead>
@@ -167,7 +167,7 @@ export function InsumosTab({
                   <td className={cn(td, num, 'text-muted-foreground')}>
                     {i.usos} {i.usos === 1 ? 'ítem' : 'ítems'}
                   </td>
-                  <td className={tdEdit}>
+                  <td className={cn(tdEdit, 'hidden lg:table-cell')}>
                     <CampoTexto
                       value={i.fuente}
                       placeholder="Fuente / referencia"
@@ -182,7 +182,7 @@ export function InsumosTab({
                       aria-label="Eliminar insumo"
                       disabled={i.usos > 0}
                       onClick={() => editar({ op: 'insumo.eliminar', id: i.id })}
-                      className="rounded p-1.5 text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive focus:opacity-100 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground group-hover:opacity-100 group-hover:disabled:opacity-30"
+                      className="rounded p-1.5 text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive focus:opacity-100 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-muted-foreground group-hover:opacity-100 group-hover:disabled:opacity-30 [@media(hover:none)]:opacity-100 [@media(hover:none)]:disabled:opacity-30"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
