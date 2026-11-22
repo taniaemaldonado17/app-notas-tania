@@ -1,12 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import * as api from '@/lib/api'
 import { NOMBRES_TIPO, type TipoInsumo } from '@/lib/presupuesto/calculo'
-import type { Operacion } from '@/lib/presupuesto/editar'
 import { fmtInput, parseNumeroAR } from '@/lib/presupuesto/format'
 import { cn } from '@/lib/utils'
+import { usePresupuesto } from './presupuesto-context'
 
 /* ------------------------------------------------------------------ */
 /* Table styles shared by the budget screens                            */
@@ -21,21 +20,12 @@ export const num = 'text-right tabular-nums whitespace-nowrap'
 /* Saving edits                                                         */
 /* ------------------------------------------------------------------ */
 
-/** Runs one budget edit; shows the error and returns null if it fails. */
-export function useEditar(presupuestoId: string, onDone: () => void) {
-  return useCallback(
-    async (op: Operacion) => {
-      try {
-        const r = await api.editarPresupuesto(presupuestoId, op)
-        onDone()
-        return r
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : 'No se pudo guardar el cambio')
-        return null
-      }
-    },
-    [presupuestoId, onDone]
-  )
+/**
+ * Runs one budget edit on the device (works offline; uploaded in the
+ * background). Shows the error and returns null if it can't be applied.
+ */
+export function useEditar() {
+  return usePresupuesto().editar
 }
 
 /* ------------------------------------------------------------------ */

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { ArrowLeft, ChevronRight, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
+import { EstadoSincro } from './estado-sincro'
+import { PresupuestoProvider, usePresupuesto } from './presupuesto-context'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -25,25 +27,26 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'certificacion', label: 'Certificación' },
 ]
 
-/** Full-screen budget opened from a project row. */
+/**
+ * Full-screen budget opened from a project row. Works offline: it reads and
+ * edits the copy kept on the device and uploads the changes when there's
+ * connection (see lib/presupuesto/offline.ts).
+ */
 export function PresupuestoView({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
-  const [data, setData] = useState<PresupuestoDetalle | null>(null)
-  const [error, setError] = useState(false)
+  return (
+    <PresupuestoProvider id={id} onSubido={onChanged}>
+      <Pantalla id={id} onClose={onClose} onChanged={onChanged} />
+    </PresupuestoProvider>
+  )
+}
+
+function Pantalla({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
+  const { detalle: data, estado } = usePresupuesto()
+  // Nothing on the device and the server couldn't be reached (or the budget is gone).
+  const error = !data && !estado.subiendo && (estado.sinConexion || estado.sinSesion || estado.eliminado)
   const [tab, setTab] = useState<Tab>('presupuesto')
   const [itemId, setItemId] = useState<string | null>(null)
   const [paramsOpen, setParamsOpen] = useState(false)
-
-  const cargar = useCallback(async () => {
-    try {
-      setData(await api.fetchPresupuesto(id))
-    } catch {
-      setError(true)
-    }
-  }, [id])
-
-  useEffect(() => {
-    void cargar()
-  }, [cargar])
 
   // Esc closes the view (dialogs handle their own Esc first).
   useEffect(() => {
@@ -74,7 +77,6 @@ export function PresupuestoView({ id, onClose, onChanged }: { id: string; onClos
   }
 
   const cerrarItem = useCallback(() => setItemId(null), [])
-  const recargar = useCallback(() => void cargar(), [cargar])
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-label="Presupuesto">
@@ -84,6 +86,7 @@ export function PresupuestoView({ id, onClose, onChanged }: { id: string; onClos
           <span className="hidden sm:inline">Volver al proyecto</span>
         </Button>
         <div className="min-w-0 flex-1 truncate text-sm font-medium">{data?.info.nombre ?? 'Presupuesto'}</div>
+        <EstadoSincro />
         <nav className="flex rounded-lg bg-muted p-0.5 text-sm">
           {TABS.map((t) => (
             <button
@@ -120,34 +123,29 @@ export function PresupuestoView({ id, onClose, onChanged }: { id: string; onClos
 
       <div className="notion-scroll flex-1 overflow-y-auto">
         {error ? (
-          <p className="py-20 text-center text-sm text-muted-foreground">No se pudo abrir el presupuesto.</p>
+          <p className="mx-auto max-w-md px-4 py-20 text-center text-sm text-muted-foreground">
+            {estado.eliminado
+              ? 'Este presupuesto ya no existe.'
+              : estado.sinSesion
+                ? 'Tu sesión venció: volvé a iniciar sesión para abrir el presupuesto.'
+                : 'No hay conexión y este presupuesto todavía no está guardado en este dispositivo. Abrilo una vez con señal para poder usarlo sin conexión.'}
+          </p>
         ) : !data ? (
           <div className="flex justify-center py-20">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : tab === 'presupuesto' ? (
-          <Resumen
-            data={data}
-            onOpenItem={setItemId}
-            onEditParams={() => setParamsOpen(true)}
-            onChanged={recargar}
-          />
+          <Resumen data={data} onOpenItem={setItemId} onEditParams={() => setParamsOpen(true)} />
         ) : tab === 'insumos' ? (
-          <InsumosTab presupuestoId={id} cargas={data.info.cargasSociales} coef={data.info.coefAjuste} onChanged={recargar} />
+          <InsumosTab cargas={data.info.cargasSociales} coef={data.info.coefAjuste} />
         ) : (
           <CertificacionTab presupuestoId={id} onChanged={onChanged} />
         )}
       </div>
 
-      <ItemDialog presupuestoId={id} itemId={itemId} onClose={cerrarItem} onChanged={recargar} />
+      <ItemDialog itemId={itemId} onClose={cerrarItem} />
       {data && (
-        <ParametrosDialog
-          open={paramsOpen}
-          onOpenChange={setParamsOpen}
-          info={data.info}
-          presupuestoId={id}
-          onSaved={recargar}
-        />
+        <ParametrosDialog open={paramsOpen} onOpenChange={setParamsOpen} info={data.info} />
       )}
     </div>
   )
@@ -161,15 +159,13 @@ function Resumen({
   data,
   onOpenItem,
   onEditParams,
-  onChanged,
 }: {
   data: PresupuestoDetalle
   onOpenItem: (id: string) => void
   onEditParams: () => void
-  onChanged: () => void
 }) {
   const { info, calc } = data
-  const editar = useEditar(info.id, onChanged)
+  const editar = useEditar()
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
   const todosAbiertos = calc.rubros.length > 0 && abiertos.size === calc.rubros.length
 
@@ -411,15 +407,12 @@ function ParametrosDialog({
   open,
   onOpenChange,
   info,
-  presupuestoId,
-  onSaved,
 }: {
   open: boolean
   onOpenChange: (o: boolean) => void
   info: PresupuestoInfo
-  presupuestoId: string
-  onSaved: () => void
 }) {
+  const editar = useEditar()
   const inicial = useCallback(
     () => ({
       nombre: info.nombre,
@@ -467,15 +460,11 @@ function ParametrosDialog({
       return
     }
     setGuardando(true)
-    try {
-      await api.editarPresupuesto(presupuestoId, { op: 'parametros', data })
+    const ok = await editar({ op: 'parametros', data })
+    setGuardando(false)
+    if (ok) {
       toast.success('Datos guardados')
-      onSaved()
       onOpenChange(false)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'No se pudo guardar')
-    } finally {
-      setGuardando(false)
     }
   }
 

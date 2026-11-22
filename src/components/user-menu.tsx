@@ -17,6 +17,8 @@ import {
 import { LogOut, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
+import { borrarDatosOffline } from '@/components/sincronizador-obra'
+import { cantidadPendientes } from '@/lib/presupuesto/offline'
 
 export function UserMenu() {
   const { data: session } = useSession()
@@ -32,7 +34,18 @@ export function UserMenu() {
     .toUpperCase()
 
   async function handleLogout() {
+    const pendientes = await cantidadPendientes()
+    if (
+      pendientes &&
+      !window.confirm(
+        `Hay ${pendientes} ${pendientes === 1 ? 'cambio' : 'cambios'} de presupuestos sin subir (sin conexión). Si cerrás sesión se pierden.\n\n¿Cerrar sesión igual?`
+      )
+    ) {
+      return
+    }
     await signOut({ redirect: false })
+    // Data kept on the device for offline work belongs to this account.
+    await borrarDatosOffline()
     toast.success('Sesión cerrada')
     window.location.reload()
   }

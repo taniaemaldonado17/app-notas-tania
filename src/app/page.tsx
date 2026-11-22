@@ -12,6 +12,7 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { SearchDialog } from '@/components/search-dialog'
 import { ShareDialog } from '@/components/share-dialog'
 import { DatabasesWorkspace } from '@/components/db/databases-workspace'
+import { SincronizadorObra } from '@/components/sincronizador-obra'
 import * as api from '@/lib/api'
 import type { NewPageType, Page, PageSummary } from '@/lib/types'
 import { useWorkspace } from '@/lib/workspace-store'
@@ -306,6 +307,7 @@ function AppShell() {
 
   return (
     <div className="app-wallpaper flex min-h-dvh bg-background">
+      <SincronizadorObra />
       <AppSidebar
         pages={pages ?? []}
         currentPageId={pageId}

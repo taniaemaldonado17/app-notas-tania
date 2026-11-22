@@ -1,52 +1,27 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Loader2, Plus, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import * as api from '@/lib/api'
 import { NOMBRES_TIPO, TIPOS_INSUMO, type TipoInsumo } from '@/lib/presupuesto/calculo'
 import { fmtARS, fmtNumFino, fmtPct, parseNumeroAR } from '@/lib/presupuesto/format'
+import { derivarInsumos } from '@/lib/presupuesto/local'
 import type { InsumoFila } from '@/lib/presupuesto/types'
 import { cn } from '@/lib/utils'
 import { CampoNumero, CampoTexto, num, td, tdEdit, th, TipoBadge, useEditar } from './campos'
+import { usePresupuesto } from './presupuesto-context'
 
-export function InsumosTab({
-  presupuestoId,
-  cargas,
-  coef,
-  onChanged,
-}: {
-  presupuestoId: string
-  cargas: number
-  coef: number
-  onChanged: () => void
-}) {
-  const [insumos, setInsumos] = useState<InsumoFila[] | null>(null)
+export function InsumosTab({ cargas, coef }: { cargas: number; coef: number }) {
+  const { vista } = usePresupuesto()
+  const insumos = useMemo<InsumoFila[] | null>(() => (vista ? derivarInsumos(vista) : null), [vista])
   const [q, setQ] = useState('')
   const [tipo, setTipo] = useState<TipoInsumo | null>(null)
   const [nuevoOpen, setNuevoOpen] = useState(false)
-
-  const cargar = useCallback(async () => {
-    try {
-      setInsumos(await api.fetchPresupuestoInsumos(presupuestoId))
-    } catch {
-      toast.error('No se pudieron cargar los insumos')
-    }
-  }, [presupuestoId])
-
-  useEffect(() => {
-    void cargar()
-  }, [cargar])
-
-  const despues = useCallback(() => {
-    void cargar()
-    onChanged()
-  }, [cargar, onChanged])
-  const editar = useEditar(presupuestoId, despues)
+  const editar = useEditar()
 
   const visibles = useMemo(() => {
     const t = q.trim().toLowerCase()

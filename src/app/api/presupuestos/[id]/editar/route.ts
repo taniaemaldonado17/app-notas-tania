@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server'
 import { getAuthUserId } from '@/lib/auth-helpers'
-import { aplicarOperacion, ErrorEdicion, operacionSchema } from '@/lib/presupuesto/editar'
+import { aplicarLote, aplicarOperacion, ErrorEdicion, loteSchema, operacionSchema } from '@/lib/presupuesto/editar'
 import { findAccessiblePresupuesto } from '@/lib/presupuesto/server'
 
 /**
  * One edit to a budget (parameters, inputs, rubros, items, price-analysis
- * lines, measurements). Body: an Operacion (see lib/presupuesto/editar.ts).
+ * lines, measurements). Body: an Operacion (see lib/presupuesto/editar.ts),
+ * or { lote: Operacion[] } for changes made offline (applied in order).
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const userId = await getAuthUserId()
@@ -23,6 +24,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   } catch {
     return NextResponse.json({ error: 'Pedido inválido' }, { status: 400 })
   }
+  if (body && typeof body === 'object' && 'lote' in body) {
+    const lote = loteSchema.safeParse(body)
+    if (!lote.success) {
+      return NextResponse.json({ error: 'Datos inválidos: revisá los valores cargados' }, { status: 400 })
+    }
+    try {
+      return NextResponse.json(await aplicarLote(id, lote.data.lote))
+    } catch (err) {
+      console.error('presupuesto batch edit failed', err)
+      return NextResponse.json({ error: 'No se pudieron guardar los cambios' }, { status: 500 })
+    }
+  }
+
   const parsed = operacionSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ error: 'Datos inválidos: revisá los valores cargados' }, { status: 400 })

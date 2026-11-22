@@ -22,6 +22,8 @@ export const metadata: Metadata = {
   description: "Notas de trabajo en estilo Notion. Tablero Kanban, listas de tareas y registro diario.",
   keywords: ["Notion", "Kanban", "Tareas", "Notas", "Trabajo"],
   authors: [{ name: "Registro de tareas diarias" }],
+  // Installed on the iPad home screen: full screen, works offline.
+  appleWebApp: { capable: true, title: "Notas", statusBarStyle: "default" },
 };
 
 // iPad browsers default to "desktop mode" and lay pages out wider than the

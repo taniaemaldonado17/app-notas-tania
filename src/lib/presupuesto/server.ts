@@ -11,6 +11,7 @@ import { accessiblePageWhere } from '@/lib/auth-helpers'
 import { newId, type PropertyDef } from '@/lib/db-types'
 import { calcular, precioCalculo, parcialMedicion, TIPOS_INSUMO, type PresupuestoCalc } from './calculo'
 import type { PlanillaPresupuesto } from './importar'
+import type { Snapshot } from './local'
 
 /** Name of the project-row column that shows the budget total. */
 export const COLUMNA_TOTAL = 'Presupuesto'
@@ -246,4 +247,39 @@ export async function listarInsumos(presupuestoId: string) {
     precioCalculo: precioCalculo(ins.tipo, ins.precioBase, info.cargasSociales, info.coefAjuste),
     usos: new Set(apu.map((a) => a.itemId)).size,
   }))
+}
+
+/** Whole budget as stored, for working on it offline (see lib/presupuesto/local.ts). */
+export async function cargarSnapshot(presupuestoId: string): Promise<Snapshot | null> {
+  const info = await db.presupuesto.findUnique({ where: { id: presupuestoId }, select: presupuestoSelect })
+  if (!info) return null
+  const [insumos, rubros, items, apu, mediciones] = await Promise.all([
+    db.presInsumo.findMany({
+      where: { presupuestoId },
+      orderBy: { position: 'asc' },
+      select: { id: true, codigo: true, descripcion: true, unidad: true, tipo: true, precioBase: true, fuente: true, position: true },
+    }),
+    db.presRubro.findMany({ where: { presupuestoId }, select: { id: true, numero: true, descripcion: true, position: true } }),
+    db.presItem.findMany({
+      where: { presupuestoId },
+      orderBy: { position: 'asc' },
+      select: { id: true, rubroId: true, codigo: true, descripcion: true, unidad: true, observaciones: true, position: true },
+    }),
+    db.presApu.findMany({
+      where: { item: { presupuestoId } },
+      select: { id: true, itemId: true, insumoId: true, cantidad: true, position: true },
+    }),
+    db.presMedicion.findMany({
+      where: { item: { presupuestoId } },
+      select: { id: true, itemId: true, sector: true, criterio: true, cant: true, largo: true, ancho: true, alto: true, coef: true, position: true },
+    }),
+  ])
+  return {
+    info: { ...info, createdAt: info.createdAt.toISOString(), updatedAt: info.updatedAt.toISOString() },
+    insumos: insumos.map((i) => ({ ...i, tipo: i.tipo as Snapshot['insumos'][number]['tipo'] })),
+    rubros,
+    items,
+    apu,
+    mediciones,
+  }
 }

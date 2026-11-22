@@ -25,11 +25,19 @@ async function jsonFetch<T>(
       : {}),
     ...(options?.headers as Record<string, string> | undefined),
   }
-  const res = await fetch(url, {
-    ...options,
-    headers,
-    credentials: 'same-origin',
-  })
+  let res: Response
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers,
+      credentials: 'same-origin',
+    })
+  } catch {
+    throw new Error('Sin conexión: esto necesita internet. Probá de nuevo cuando haya señal.')
+  }
+  if (res.status === 503 && res.headers.get('x-sin-conexion')) {
+    throw new Error('Sin conexión: esto necesita internet. Probá de nuevo cuando haya señal.')
+  }
   if (!res.ok) {
     let message = `Error ${res.status}`
     try {

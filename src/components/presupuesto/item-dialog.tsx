@@ -1,66 +1,36 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import * as api from '@/lib/api'
 import { NOMBRES_TIPO, TIPOS_INSUMO } from '@/lib/presupuesto/calculo'
 import { fmtARS, fmtNum } from '@/lib/presupuesto/format'
-import type { InsumoFila, ItemDetalle } from '@/lib/presupuesto/types'
+import { derivarInsumos, derivarItem } from '@/lib/presupuesto/local'
+import type { ItemDetalle } from '@/lib/presupuesto/types'
 import { cn } from '@/lib/utils'
 import { CampoNumero, CampoTexto, Kpi, num, td, tdEdit, th, TipoBadge, useEditar } from './campos'
+import { usePresupuesto } from './presupuesto-context'
 
 /** Item: editable header, price analysis (APU) and measurements. */
-export function ItemDialog({
-  presupuestoId,
-  itemId,
-  onClose,
-  onChanged,
-}: {
-  presupuestoId: string
-  itemId: string | null
-  onClose: () => void
-  /** Something changed: the budget view reloads its totals. */
-  onChanged: () => void
-}) {
-  const [d, setD] = useState<ItemDetalle | null>(null)
+export function ItemDialog({ itemId, onClose }: { itemId: string | null; onClose: () => void }) {
+  const { vista } = usePresupuesto()
+  const editar = useEditar()
+  // Built from the copy on the device: opens and updates without connection.
+  const d = useMemo(() => (vista && itemId ? derivarItem(vista, itemId) : null), [vista, itemId])
 
-  const cargar = useCallback(async () => {
-    if (!itemId) return
-    try {
-      setD(await api.fetchPresupuestoItem(presupuestoId, itemId))
-    } catch {
-      toast.error('No se pudo abrir el ítem')
-      onClose()
-    }
-  }, [presupuestoId, itemId, onClose])
-
+  // The item was deleted (here or by someone else).
   useEffect(() => {
-    setD(null)
-    void cargar()
-  }, [cargar])
-
-  const despues = useCallback(() => {
-    void cargar()
-    onChanged()
-  }, [cargar, onChanged])
-  const editar = useEditar(presupuestoId, despues)
+    if (vista && itemId && !d) onClose()
+  }, [vista, itemId, d, onClose])
 
   async function eliminarItem() {
     if (!d) return
     if (!window.confirm(`¿Eliminar el ítem ${d.item.codigo} — ${d.item.descripcion}?\n\nSe borran su análisis de precio y sus mediciones.`)) return
-    try {
-      await api.editarPresupuesto(presupuestoId, { op: 'item.eliminar', id: d.item.id })
-      toast.success('Ítem eliminado')
-      onChanged()
-      onClose()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'No se pudo eliminar el ítem')
-    }
+    if (await editar({ op: 'item.eliminar', id: d.item.id })) toast.success('Ítem eliminado')
   }
 
   return (
@@ -125,7 +95,7 @@ export function ItemDialog({
               <Kpi label="Subtotal" value={fmtARS(d.subtotal)} accent />
             </div>
 
-            <Analisis d={d} presupuestoId={presupuestoId} editar={editar} />
+            <Analisis d={d} editar={editar} />
             <Mediciones d={d} editar={editar} />
 
             <div className="flex justify-end border-t border-border pt-3">
@@ -161,7 +131,7 @@ function BotonBorrar({ onClick, label }: { onClick: () => void; label: string })
 /* Análisis de precio unitario                                          */
 /* ------------------------------------------------------------------ */
 
-function Analisis({ d, presupuestoId, editar }: { d: ItemDetalle; presupuestoId: string; editar: Editar }) {
+function Analisis({ d, editar }: { d: ItemDetalle; editar: Editar }) {
   return (
     <section className="space-y-2">
       <div className="flex items-end justify-between gap-2">
@@ -170,7 +140,6 @@ function Analisis({ d, presupuestoId, editar }: { d: ItemDetalle; presupuestoId:
           <p className="text-xs text-muted-foreground">Cuánto de cada insumo lleva una unidad ({d.item.unidad || 'unidad'}) del ítem.</p>
         </div>
         <AgregarInsumo
-          presupuestoId={presupuestoId}
           yaUsados={new Set(d.apu.map((l) => l.insumoId))}
           onElegir={(insumoId) => editar({ op: 'apu.crear', data: { itemId: d.item.id, insumoId, cantidad: 0 } })}
         />
@@ -242,29 +211,10 @@ function Analisis({ d, presupuestoId, editar }: { d: ItemDetalle; presupuestoId:
   )
 }
 
-function AgregarInsumo({
-  presupuestoId,
-  yaUsados,
-  onElegir,
-}: {
-  presupuestoId: string
-  yaUsados: Set<string>
-  onElegir: (insumoId: string) => void
-}) {
+function AgregarInsumo({ yaUsados, onElegir }: { yaUsados: Set<string>; onElegir: (insumoId: string) => void }) {
   const [open, setOpen] = useState(false)
-  const [insumos, setInsumos] = useState<InsumoFila[] | null>(null)
-
-  useEffect(() => {
-    if (!open) return
-    let cancelled = false
-    api
-      .fetchPresupuestoInsumos(presupuestoId)
-      .then((r) => !cancelled && setInsumos(r))
-      .catch(() => !cancelled && toast.error('No se pudieron cargar los insumos'))
-    return () => {
-      cancelled = true
-    }
-  }, [open, presupuestoId])
+  const { vista } = usePresupuesto()
+  const insumos = useMemo(() => (open && vista ? derivarInsumos(vista) : null), [open, vista])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
