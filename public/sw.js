@@ -10,7 +10,7 @@
  *
  * Bump VERSION to drop old caches.
  */
-const VERSION = 'v1'
+const VERSION = 'v2'
 const SHELL = `shell-${VERSION}`
 const STATIC = `static-${VERSION}`
 const API = `api-${VERSION}`
