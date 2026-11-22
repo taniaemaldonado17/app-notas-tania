@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useWorkspace } from '@/lib/workspace-store'
+import { MaltaEncabezado } from '@/components/malta-encabezado'
 import { fetchFavoriteCards } from '@/lib/api'
 import type { FavoriteCard, NewPageType, PageSummary } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -116,6 +117,18 @@ export function AppSidebar({
         aria-hidden={!sidebarOpen}
         inert={!sidebarOpen}
       >
+       {/* MALTA · Project Manager (goes to Inicio) */}
+       <button
+         type="button"
+         onClick={() => {
+           onGoHome()
+           afterNavigate()
+         }}
+         className="mb-2 block shrink-0 rounded-[21px] transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+         aria-label="MALTA Project Manager: ir a Inicio"
+       >
+         <MaltaEncabezado className="block h-auto w-full" />
+       </button>
        <div className="glass-panel flex min-h-0 flex-1 flex-col overflow-hidden rounded-[22px]">
         {/* Workspace header */}
         <div className="flex h-12 items-center gap-2 px-3">
