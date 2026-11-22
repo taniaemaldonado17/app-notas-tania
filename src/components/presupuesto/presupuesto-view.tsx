@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowLeft, ChevronRight, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronRight, Copy, Download, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { EstadoSincro } from './estado-sincro'
 import { PresupuestoProvider, usePresupuesto } from './presupuesto-context'
 import { Button } from '@/components/ui/button'
@@ -19,11 +19,17 @@ import { CampoNumero, CampoTexto, Kpi, num, td, th, useEditar } from './campos'
 import { InsumosTab } from './insumos-tab'
 import { CertificacionTab } from '@/components/certificacion/certificacion-tab'
 import { ItemDialog } from './item-dialog'
+import { AnalisisTab, ComputoTab, ResumenTab, VerificacionTab } from './vistas-cyp'
+import { useWorkspace } from '@/lib/workspace-store'
 
-type Tab = 'presupuesto' | 'insumos' | 'certificacion'
+type Tab = 'resumen' | 'presupuesto' | 'analisis' | 'insumos' | 'computo' | 'verificacion' | 'certificacion'
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'resumen', label: 'Resumen' },
   { id: 'presupuesto', label: 'Presupuesto' },
+  { id: 'analisis', label: 'Análisis de precios' },
   { id: 'insumos', label: 'Insumos' },
+  { id: 'computo', label: 'Cómputo métrico' },
+  { id: 'verificacion', label: 'Verificación' },
   { id: 'certificacion', label: 'Certificación' },
 ]
 
@@ -77,31 +83,28 @@ function Pantalla({ id, onClose, onChanged }: { id: string; onClose: () => void;
   }
 
   const cerrarItem = useCallback(() => setItemId(null), [])
+  const openPresupuesto = useWorkspace((s) => s.openPresupuesto)
+
+  async function duplicar() {
+    try {
+      const { id: nuevo } = await api.duplicarPresupuesto(id)
+      toast.success('Copia creada: queda en Inicio › Cómputo y presupuesto, sin proyecto')
+      onChanged()
+      openPresupuesto(nuevo)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo duplicar')
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background" role="dialog" aria-label="Presupuesto">
-      <header className="flex items-center gap-2 border-b border-border px-3 py-2 sm:px-5">
+      <header className="flex items-center gap-2 px-3 pt-2 sm:px-5">
         <Button variant="ghost" size="sm" onClick={onClose} className="gap-1.5">
           <ArrowLeft className="h-4 w-4" />
-          <span className="hidden sm:inline">Volver al proyecto</span>
+          <span className="hidden sm:inline">Volver</span>
         </Button>
-        <div className="min-w-0 flex-1 truncate text-sm font-medium">{data?.info.nombre ?? 'Presupuesto'}</div>
+        <div className="min-w-0 flex-1 truncate text-sm font-medium">{data?.info.nombre ?? 'Cómputo y presupuesto'}</div>
         <EstadoSincro />
-        <nav className="flex rounded-lg bg-muted p-0.5 text-sm">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={cn(
-                'rounded-md px-2.5 py-1 font-medium transition sm:px-3',
-                tab === t.id ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Más opciones">
@@ -113,6 +116,22 @@ function Pantalla({ id, onClose, onChanged }: { id: string; onClose: () => void;
               <Pencil className="mr-2 h-4 w-4" />
               Editar datos y parámetros
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href={api.urlExportarPresupuesto(id, 'xlsx')} download>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar Excel
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href={api.urlExportarPresupuesto(id, 'json')} download>
+                <Download className="mr-2 h-4 w-4" />
+                Exportar JSON (respaldo)
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={duplicar}>
+              <Copy className="mr-2 h-4 w-4" />
+              Duplicar (nueva revisión)
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={eliminar} className="text-destructive focus:text-destructive">
               <Trash2 className="mr-2 h-4 w-4" />
               Eliminar presupuesto
@@ -120,6 +139,23 @@ function Pantalla({ id, onClose, onChanged }: { id: string; onClose: () => void;
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
+      <nav className="notion-scroll flex gap-1 overflow-x-auto border-b border-border px-3 sm:px-5" role="tablist">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className={cn(
+              '-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition',
+              tab === t.id ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
       <div className="notion-scroll flex-1 overflow-y-auto">
         {error ? (
@@ -134,8 +170,16 @@ function Pantalla({ id, onClose, onChanged }: { id: string; onClose: () => void;
           <div className="flex justify-center py-20">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
+        ) : tab === 'resumen' ? (
+          <ResumenTab onEditParams={() => setParamsOpen(true)} />
         ) : tab === 'presupuesto' ? (
           <Resumen data={data} onOpenItem={setItemId} onEditParams={() => setParamsOpen(true)} />
+        ) : tab === 'analisis' ? (
+          <AnalisisTab onOpenItem={setItemId} />
+        ) : tab === 'computo' ? (
+          <ComputoTab onOpenItem={setItemId} />
+        ) : tab === 'verificacion' ? (
+          <VerificacionTab onOpenItem={setItemId} />
         ) : tab === 'insumos' ? (
           <InsumosTab cargas={data.info.cargasSociales} coef={data.info.coefAjuste} />
         ) : (
@@ -302,6 +346,28 @@ function Resumen({
                       </Button>
                       <Button
                         variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground"
+                        disabled={calc.rubros[0]?.id === r.id}
+                        onClick={() => editar({ op: 'rubro.mover', id: r.id, dir: -1 })}
+                        aria-label="Subir rubro"
+                        title="Subir rubro (renumera)"
+                      >
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground"
+                        disabled={calc.rubros.at(-1)?.id === r.id}
+                        onClick={() => editar({ op: 'rubro.mover', id: r.id, dir: 1 })}
+                        aria-label="Bajar rubro"
+                        title="Bajar rubro (renumera)"
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
                         size="sm"
                         className="text-muted-foreground hover:text-destructive"
                         onClick={() => eliminarRubro(r)}
@@ -312,7 +378,7 @@ function Resumen({
                       </Button>
                     </div>
                     {r.items.length ? (
-                      <TablaItems items={r.items} onOpenItem={onOpenItem} />
+                      <TablaItems items={r.items} onOpenItem={onOpenItem} onMover={(itemId, dir) => editar({ op: 'item.mover', id: itemId, dir })} />
                     ) : (
                       <p className="border-t border-border px-4 py-4 text-sm text-muted-foreground">
                         Este rubro no tiene ítems todavía.
@@ -353,7 +419,15 @@ function Dato({ k, v }: { k: string; v: string }) {
 /** P.U. breakdown columns: only from 1024 px (iPad portrait shows totals; the breakdown is in the item sheet). */
 const desglose = 'hidden lg:table-cell'
 
-function TablaItems({ items, onOpenItem }: { items: PresupuestoDetalle['calc']['rubros'][number]['items']; onOpenItem: (id: string) => void }) {
+function TablaItems({
+  items,
+  onOpenItem,
+  onMover,
+}: {
+  items: PresupuestoDetalle['calc']['rubros'][number]['items']
+  onOpenItem: (id: string) => void
+  onMover: (itemId: string, dir: -1 | 1) => void
+}) {
   return (
     <div className="overflow-x-auto border-t border-border">
       <table className="w-full min-w-[640px] text-sm lg:min-w-[960px]">
@@ -369,10 +443,11 @@ function TablaItems({ items, onOpenItem }: { items: PresupuestoDetalle['calc']['
             <th className={cn(th, 'text-right')}>P.U. total</th>
             <th className={cn(th, 'text-right')}>Subtotal</th>
             <th className={cn(th, 'text-right')}>Incid.</th>
+            <th className="w-16" aria-label="Orden" />
           </tr>
         </thead>
         <tbody>
-          {items.map((i) => (
+          {items.map((i, k) => (
             <tr
               key={i.id}
               onClick={() => onOpenItem(i.id)}
@@ -391,6 +466,28 @@ function TablaItems({ items, onOpenItem }: { items: PresupuestoDetalle['calc']['
               <td className={cn(td, num)}>{fmtARS(i.puTotal)}</td>
               <td className={cn(td, num, 'font-semibold')}>{fmtARS(i.subtotal)}</td>
               <td className={cn(td, num, 'text-muted-foreground')}>{fmtPct(i.incidencia)}</td>
+              <td className="whitespace-nowrap px-1 py-1 text-right align-top" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  disabled={k === 0}
+                  onClick={() => onMover(i.id, -1)}
+                  className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-25"
+                  aria-label={`Subir ${i.codigo}`}
+                  title="Subir (renumera)"
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  disabled={k === items.length - 1}
+                  onClick={() => onMover(i.id, 1)}
+                  className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-25"
+                  aria-label={`Bajar ${i.codigo}`}
+                  title="Bajar (renumera)"
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>

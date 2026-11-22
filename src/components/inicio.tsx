@@ -6,11 +6,13 @@ import { Database, FileText, KanbanSquare, Loader2, Menu, RefreshCw, Users } fro
 import { MaltaLogo } from '@/components/malta-logo'
 import { UserMenu } from '@/components/user-menu'
 import { AccesoDialog } from '@/components/acceso-dialog'
+import { CypLista } from '@/components/presupuesto/cyp-lista'
 import * as api from '@/lib/api'
 import { useWorkspace } from '@/lib/workspace-store'
 import { cn } from '@/lib/utils'
 
 const rtf = new Intl.RelativeTimeFormat('es-AR', { numeric: 'auto' })
+const SECCION_KEY = 'malta:inicioSeccion'
 
 /** "hace 5 minutos", "ayer", "el 3 de nov." */
 export function haceCuanto(iso: string): string {
@@ -48,6 +50,23 @@ export function Inicio({
   const [error, setError] = useState(false)
   const [cargando, setCargando] = useState(false)
   const [accesoOpen, setAccesoOpen] = useState(false)
+  const [seccion, setSeccion] = useState<'inicio' | 'cyp'>('inicio')
+  // Remember the tab when coming back to Inicio.
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(SECCION_KEY) === 'cyp') setSeccion('cyp')
+    } catch {
+      // storage unavailable
+    }
+  }, [])
+  function elegirSeccion(k: 'inicio' | 'cyp') {
+    setSeccion(k)
+    try {
+      window.localStorage.setItem(SECCION_KEY, k)
+    } catch {
+      // storage unavailable
+    }
+  }
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -106,10 +125,35 @@ export function Inicio({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 space-y-8 px-4 py-8 sm:px-6">
+      <main className="mx-auto w-full max-w-5xl flex-1 space-y-6 px-4 py-8 sm:px-6">
         <h1 className="text-3xl font-bold">{nombre ? `Hola, ${nombre}` : 'Inicio'}</h1>
 
-        {error && !data ? (
+        <nav className="flex gap-1 border-b border-border" role="tablist">
+          {(
+            [
+              ['inicio', 'Actividad'],
+              ['cyp', 'Cómputo y presupuesto'],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={seccion === k}
+              onClick={() => elegirSeccion(k)}
+              className={cn(
+                '-mb-px border-b-2 px-3 py-2 text-sm font-medium transition',
+                seccion === k ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        {seccion === 'cyp' ? (
+          <CypLista />
+        ) : error && !data ? (
           <p className="text-sm text-muted-foreground">No se pudo cargar el inicio. Revisá la conexión y tocá actualizar.</p>
         ) : !data ? (
           <div className="flex justify-center py-16">

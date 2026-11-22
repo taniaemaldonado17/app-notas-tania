@@ -6,7 +6,8 @@
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { TIPOS_INSUMO } from './calculo'
-import { sincronizarTotal } from './server'
+import { cargarSnapshot, sincronizarTotal } from './server'
+import { moverItem, moverRubro } from './local'
 
 export class ErrorEdicion extends Error {}
 
@@ -39,6 +40,9 @@ export const operacionSchema = z.discriminatedUnion('op', [
         coefAjuste: numero.min(0).max(100),
         superficieCubierta: numeroONulo,
         superficiePredio: numeroONulo,
+        gastosGenerales: numero.min(0).max(10),
+        beneficio: numero.min(0).max(10),
+        impuestos: numero.min(0).max(10),
       })
       .partial(),
   }),
@@ -126,6 +130,10 @@ export const operacionSchema = z.discriminatedUnion('op', [
     data: z.object({ sector: textoONulo(200).optional(), criterio: textoONulo(500).optional(), ...factores }),
   }),
   z.object({ op: z.literal('medicion.eliminar'), id }),
+
+  // One place up (-1) or down (1); item codes are renumbered by order.
+  z.object({ op: z.literal('item.mover'), id, dir: z.union([z.literal(-1), z.literal(1)]) }),
+  z.object({ op: z.literal('rubro.mover'), id, dir: z.union([z.literal(-1), z.literal(1)]) }),
 ])
 
 export type Operacion = z.infer<typeof operacionSchema>
@@ -306,6 +314,30 @@ async function aplicarUna(presupuestoId: string, op: Operacion): Promise<string 
       if (!(await db.presMedicion.findFirst({ where: { id: op.id, item: { presupuestoId } } }))) return
       await db.presMedicion.delete({ where: { id: op.id } })
       return
+
+    case 'item.mover': {
+      const s = await cargarSnapshot(presupuestoId)
+      existe(s?.items.find((i) => i.id === op.id) ?? null, 'el ítem')
+      const cambios = moverItem(s!, op.id, op.dir)
+      if (cambios) {
+        await db.$transaction(
+          cambios.map((c) => db.presItem.update({ where: { id: c.id }, data: { position: c.position, codigo: c.codigo } }))
+        )
+      }
+      return
+    }
+    case 'rubro.mover': {
+      const s = await cargarSnapshot(presupuestoId)
+      existe(s?.rubros.find((r) => r.id === op.id) ?? null, 'el rubro')
+      const cambios = moverRubro(s!, op.id, op.dir)
+      if (cambios) {
+        await db.$transaction([
+          ...cambios.rubros.map((c) => db.presRubro.update({ where: { id: c.id }, data: { numero: c.numero, position: c.position } })),
+          ...cambios.items.map((c) => db.presItem.update({ where: { id: c.id }, data: { codigo: c.codigo } })),
+        ])
+      }
+      return
+    }
   }
 }
 

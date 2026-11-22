@@ -27,6 +27,8 @@ model User {
   invitesUsed   PageInvite[]  @relation("InviteUser")
   favorites     Favorite[]
   rowsCreated   DbRow[]
+  cypCompartidos CypCompartido[] @relation("CypDuenio")
+  cypRecibidos   CypCompartido[] @relation("CypInvitado")
   // Secret for the read-only calendar feed (.ics) the user subscribes to on
   // iPhone / iPad / Google Calendar. Regenerating it revokes the old link.
   // (Plain index, not @unique: adding a unique constraint makes `db push`
@@ -208,6 +210,20 @@ model PageMember {
   @@index([userId])
 }
 
+// The owner shares their whole "Cómputo y presupuesto" section (every CyP
+// they created, with or without a project) with another user.
+model CypCompartido {
+  id        String   @id @default(cuid())
+  ownerId   String
+  owner     User     @relation("CypDuenio", fields: [ownerId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("CypInvitado", fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([ownerId, userId])
+  @@index([userId])
+}
+
 // Single-use invitation link to a page. Also allows creating an account
 // while public registration is closed.
 model PageInvite {
@@ -292,8 +308,10 @@ model DbRow {
 // to a project row of that page (ARQUITECTURA > Proyectos).
 model Presupuesto {
   id                 String   @id @default(cuid())
-  pageId             String
-  page               Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  // Page that gives access (the linked project's page). Null for a CyP not
+  // linked to any project yet: only its creator sees it.
+  pageId             String?
+  page               Page?    @relation(fields: [pageId], references: [id], onDelete: Cascade)
   // Project row. SetNull so restoring a deleted row from history doesn't
   // lose the budget: it can be linked again.
   rowId              String?  @unique
@@ -306,6 +324,10 @@ model Presupuesto {
   coefAjuste         Float    @default(1)
   superficieCubierta Float?
   superficiePredio   Float?
+  // Sale price = costo-costo × (1 + gastosGenerales) × (1 + beneficio) × (1 + impuestos)
+  gastosGenerales    Float    @default(0)
+  beneficio          Float    @default(0)
+  impuestos          Float    @default(0)
   // Last computed total, copied to the project row's "Presupuesto" column.
   totalCache         Float    @default(0)
   createdById        String?
@@ -317,6 +339,7 @@ model Presupuesto {
   updatedAt          DateTime @updatedAt
 
   @@index([pageId])
+  @@index([createdById])
 }
 
 // ------------------------------------------------------------------

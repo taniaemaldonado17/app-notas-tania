@@ -569,10 +569,10 @@ export async function fetchRowPresupuesto(rowId: string) {
   return data.presupuesto
 }
 
-/** Imports a "cómputo y presupuesto" .xlsx as the budget of a project row. */
-export async function importPresupuesto(rowId: string, file: File): Promise<{ id: string; avisos: string[] }> {
+/** Imports a CyP (.xlsx, or the CyP app's .json); with rowId it's linked to that project. */
+export async function importPresupuesto(rowId: string | null, file: File): Promise<{ id: string; avisos: string[] }> {
   const formData = new FormData()
-  formData.append('rowId', rowId)
+  if (rowId) formData.append('rowId', rowId)
   formData.append('file', file)
   return jsonFetch(`${API_BASE}/presupuestos/import`, { method: 'POST', body: formData })
 }
@@ -658,7 +658,7 @@ export async function fetchInicio(): Promise<{ paginas: InicioPagina[]; activida
 
 export type AccesoData = {
   paginas: { id: string; title: string; icon: string | null }[]
-  personas: { id: string; name: string | null; email: string; paginas: string[] }[]
+  personas: { id: string; name: string | null; email: string; paginas: string[]; cyp: boolean }[]
 }
 
 export async function fetchAcceso(): Promise<AccesoData> {
@@ -667,4 +667,50 @@ export async function fetchAcceso(): Promise<AccesoData> {
 
 export async function cambiarAcceso(userId: string, pageId: string, acceso: boolean): Promise<void> {
   await jsonFetch(`${API_BASE}/acceso`, { method: 'POST', body: JSON.stringify({ userId, pageId, acceso }) })
+}
+
+/** Shares (or stops sharing) my whole "Cómputo y presupuesto" section with someone. */
+export async function cambiarAccesoCyp(userId: string, acceso: boolean): Promise<void> {
+  await jsonFetch(`${API_BASE}/acceso`, { method: 'POST', body: JSON.stringify({ userId, seccion: 'cyp', acceso }) })
+}
+
+/* ----------------------------- Sección Cómputo y presupuesto ----------------------------- */
+
+export type CypResumen = {
+  id: string
+  nombre: string
+  total: number
+  tipoCambio: number | null
+  rubros: number
+  items: number
+  updatedAt: string
+  conContrato: boolean
+  /** Who created it, when it was shared with me. */
+  de: string | null
+  proyecto: { rowId: string; titulo: string; icono: string | null; pageId: string; pagina: string } | null
+}
+
+export async function fetchPresupuestos(): Promise<CypResumen[]> {
+  return (await jsonFetch<{ presupuestos: CypResumen[] }>(`${API_BASE}/presupuestos`)).presupuestos
+}
+
+export async function crearPresupuesto(nombre?: string): Promise<{ id: string }> {
+  return jsonFetch(`${API_BASE}/presupuestos`, { method: 'POST', body: JSON.stringify({ nombre }) })
+}
+
+export async function duplicarPresupuesto(id: string): Promise<{ id: string }> {
+  return jsonFetch(`${API_BASE}/presupuestos/${id}/duplicar`, { method: 'POST' })
+}
+
+export async function vincularPresupuesto(rowId: string, presupuestoId: string): Promise<void> {
+  await jsonFetch(`${API_BASE}/rows/${rowId}/presupuesto`, { method: 'POST', body: JSON.stringify({ presupuestoId }) })
+}
+
+export async function desvincularPresupuesto(rowId: string): Promise<void> {
+  await jsonFetch(`${API_BASE}/rows/${rowId}/presupuesto`, { method: 'DELETE' })
+}
+
+/** Download link in the CyP app's formats. */
+export function urlExportarPresupuesto(id: string, formato: 'xlsx' | 'json') {
+  return `${API_BASE}/presupuestos/${id}/exportar?formato=${formato}`
 }

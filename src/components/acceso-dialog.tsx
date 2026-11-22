@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Calculator, Loader2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
 import * as api from '@/lib/api'
@@ -35,13 +35,17 @@ export function AccesoDialog({
     if (open) void cargar()
   }, [open, cargar])
 
+  /** Turning off the last thing they see: they'd drop off this list. */
+  const esLoUltimo = (p: api.AccesoData['personas'][number]) => p.paginas.length + (p.cyp ? 1 : 0) === 1
+
   async function cambiar(userId: string, pageId: string, acceso: boolean) {
     const persona = data?.personas.find((p) => p.id === userId)
     if (
       !acceso &&
-      persona?.paginas.length === 1 &&
+      persona &&
+      esLoUltimo(persona) &&
       !window.confirm(
-        `Es la última página tuya que ve ${persona.name || persona.email}. Si se la quitás deja de aparecer acá, y para volver a compartirle algo vas a tener que invitarlo con un link desde «Compartir».\n\n¿Quitar igual?`
+        `Es lo último tuyo que ve ${persona.name || persona.email}. Si se lo quitás deja de aparecer acá, y para volver a compartirle algo vas a tener que invitarlo con un link desde «Compartir».\n\n¿Quitar igual?`
       )
     ) {
       return
@@ -68,14 +72,40 @@ export function AccesoDialog({
     }
   }
 
+  async function cambiarCyp(userId: string, acceso: boolean) {
+    const persona = data?.personas.find((p) => p.id === userId)
+    if (
+      !acceso &&
+      persona &&
+      esLoUltimo(persona) &&
+      !window.confirm(
+        `Es lo último tuyo que ve ${persona.name || persona.email}. Si se lo quitás deja de aparecer acá, y para volver a compartirle algo vas a tener que invitarlo con un link desde «Compartir».\n\n¿Quitar igual?`
+      )
+    ) {
+      return
+    }
+    const clave = `${userId}:cyp`
+    setGuardando(clave)
+    setData((d) => d && { ...d, personas: d.personas.map((p) => (p.id !== userId ? p : { ...p, cyp: acceso })) })
+    try {
+      await api.cambiarAccesoCyp(userId, acceso)
+      onChanged()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo cambiar el acceso')
+      void cargar()
+    } finally {
+      setGuardando(null)
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Personas con acceso</DialogTitle>
           <DialogDescription>
-            Cada persona ve solo las páginas tuyas que tengan activadas acá. Sus propias páginas son privadas. Para sumar a alguien
-            nuevo, invitalo desde «Compartir» en una página.
+            Cada persona ve solo lo tuyo que tenga activado acá: páginas y la sección Cómputo y presupuesto. Lo que crea cada uno es
+            privado hasta que lo comparta. Para sumar a alguien nuevo, invitalo desde «Compartir» en una página.
           </DialogDescription>
         </DialogHeader>
 
@@ -95,10 +125,26 @@ export function AccesoDialog({
                     {persona.name && <div className="truncate text-xs text-muted-foreground">{persona.email}</div>}
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">
-                    ve {persona.paginas.length} de {data.paginas.length}
+                    ve {persona.paginas.length} de {data.paginas.length} páginas{persona.cyp ? ' y tus CyP' : ''}
                   </span>
                 </header>
                 <ul className="divide-y divide-border">
+                  <li className="bg-muted/30">
+                    <label className="flex cursor-pointer items-center gap-3 px-4 py-2.5">
+                      <Calculator className="h-4 w-6 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 text-sm">
+                        Cómputo y presupuesto
+                        <span className="block text-xs text-muted-foreground">Todos tus CyP, con o sin proyecto</span>
+                      </span>
+                      {guardando === `${persona.id}:cyp` && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                      <Switch
+                        checked={persona.cyp}
+                        disabled={guardando === `${persona.id}:cyp`}
+                        onCheckedChange={(v) => void cambiarCyp(persona.id, v)}
+                        aria-label={`${persona.name || persona.email} ve tu sección Cómputo y presupuesto`}
+                      />
+                    </label>
+                  </li>
                   {data.paginas.map((pagina) => {
                     const tiene = persona.paginas.includes(pagina.id)
                     const clave = `${persona.id}:${pagina.id}`

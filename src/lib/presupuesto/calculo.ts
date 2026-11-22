@@ -162,3 +162,39 @@ export function calcular(
     cantidadItems: items.length,
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Precio de venta                                                      */
+/* ------------------------------------------------------------------ */
+
+export type Coeficientes = { gastosGenerales: number; beneficio: number; impuestos: number }
+
+export type PrecioVenta = {
+  gastosGenerales: number
+  subtotal1: number
+  beneficio: number
+  subtotal2: number
+  impuestos: number
+  precio: number
+  /** Precio de venta / costo-costo ("coeficiente de pase"). */
+  coeficiente: number
+}
+
+/** Precio de venta = costo-costo × (1 + GG) × (1 + beneficio) × (1 + impuestos). */
+export function precioVenta(total: number, c: Coeficientes): PrecioVenta {
+  const gg = c.gastosGenerales || 0
+  const ben = c.beneficio || 0
+  const imp = c.impuestos || 0
+  const s1 = total * (1 + gg)
+  const s2 = s1 * (1 + ben)
+  const precio = s2 * (1 + imp)
+  return {
+    gastosGenerales: total * gg,
+    subtotal1: s1,
+    beneficio: s1 * ben,
+    subtotal2: s2,
+    impuestos: s2 * imp,
+    precio,
+    coeficiente: total ? precio / total : 0,
+  }
+}

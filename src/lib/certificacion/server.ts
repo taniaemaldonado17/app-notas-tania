@@ -191,7 +191,7 @@ const datosCert = (c: ReturnType<typeof calcularCertificado>) => ({
 })
 
 /** Copies the certified progress of the last certificate to the project row. */
-async function sincronizarAvance(presupuestoId: string) {
+export async function sincronizarAvance(presupuestoId: string) {
   const p = await db.presupuesto.findUnique({
     where: { id: presupuestoId },
     select: { rowId: true, contrato: { select: { certificados: { orderBy: { numero: 'desc' }, take: 1, select: { porcentajeAvance: true } } } } },

@@ -9,7 +9,8 @@ function base(): Snapshot {
   return {
     info: {
       id: 'p', pageId: 'pg', rowId: null, nombre: 'Obra', descripcion: null, ubicacion: null, tipoCambio: 1000,
-      cargasSociales: 1, coefAjuste: 1, superficieCubierta: 10, superficiePredio: null, totalCache: 0,
+      cargasSociales: 1, coefAjuste: 1, superficieCubierta: 10, superficiePredio: null,
+      gastosGenerales: 0, beneficio: 0, impuestos: 0, totalCache: 0,
       createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
     },
     insumos: [

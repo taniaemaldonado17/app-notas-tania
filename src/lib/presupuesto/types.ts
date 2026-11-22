@@ -13,7 +13,7 @@ export type PresupuestoResumen = {
 
 export type PresupuestoInfo = {
   id: string
-  pageId: string
+  pageId: string | null
   rowId: string | null
   nombre: string
   descripcion: string | null
@@ -23,6 +23,9 @@ export type PresupuestoInfo = {
   coefAjuste: number
   superficieCubierta: number | null
   superficiePredio: number | null
+  gastosGenerales: number
+  beneficio: number
+  impuestos: number
   totalCache: number
   createdAt: string
   updatedAt: string

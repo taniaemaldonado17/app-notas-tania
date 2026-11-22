@@ -39,6 +39,10 @@ export type PlanillaPresupuesto = {
   coefAjuste: number
   superficieCubierta: number | null
   superficiePredio: number | null
+  /** Sale-price coefficients (fractions); only the app's own JSON format has them. */
+  gastosGenerales?: number
+  beneficio?: number
+  impuestos?: number
   insumos: { codigo: string; descripcion: string; unidad: string; tipo: TipoInsumo; precioBase: number; fuente: string }[]
   rubros: { numero: number; descripcion: string; items: ItemPlanilla[] }[]
 }

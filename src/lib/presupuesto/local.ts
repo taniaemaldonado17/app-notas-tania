@@ -244,8 +244,121 @@ export function aplicarLocal(s: Snapshot, op: Operacion): Snapshot {
     case 'medicion.eliminar':
       n.mediciones = s.mediciones.filter((m) => m.id !== op.id)
       break
+
+    case 'item.mover': {
+      const cambios = moverItem(s, op.id, op.dir)
+      if (cambios) {
+        const por = new Map(cambios.map((c) => [c.id, c]))
+        n.items = s.items.map((i) => (por.has(i.id) ? { ...i, ...por.get(i.id)! } : i))
+      }
+      break
+    }
+    case 'rubro.mover': {
+      const cambios = moverRubro(s, op.id, op.dir)
+      if (cambios) {
+        const rs = new Map(cambios.rubros.map((c) => [c.id, c]))
+        const its = new Map(cambios.items.map((c) => [c.id, c]))
+        n.rubros = s.rubros.map((x) => (rs.has(x.id) ? { ...x, ...rs.get(x.id)! } : x))
+        n.items = s.items.map((x) => (its.has(x.id) ? { ...x, ...its.get(x.id)! } : x))
+      }
+      break
+    }
   }
   return n
+}
+
+/* ------------------------------------------------------------------ */
+/* Orden y numeración (igual en el servidor: editar.ts usa estas funciones) */
+/* ------------------------------------------------------------------ */
+
+const rubrosOrdenados = (s: Snapshot) => [...s.rubros].sort((a, b) => a.numero - b.numero || a.position - b.position)
+const itemsDe = (s: Snapshot, rubroId: string) => s.items.filter((i) => i.rubroId === rubroId).sort((a, b) => a.position - b.position)
+/** Codes follow the order: "<rubro number>.<order with 2 digits>", so they never repeat. */
+const codigos = (numero: number, items: { id: string }[]) => items.map((i, k) => ({ id: i.id, codigo: `${numero}.${String(k + 1).padStart(2, '0')}` }))
+
+/**
+ * Moves an item one place up (-1) or down (1) inside its rubro and renumbers
+ * the rubro's codes. Null if it can't move.
+ */
+export function moverItem(s: Snapshot, id: string, dir: -1 | 1): { id: string; position: number; codigo: string }[] | null {
+  const item = s.items.find((i) => i.id === id)
+  const rubro = item && s.rubros.find((r) => r.id === item.rubroId)
+  if (!item || !rubro) return null
+  const lista = itemsDe(s, rubro.id)
+  const k = lista.findIndex((i) => i.id === id)
+  const j = k + dir
+  if (j < 0 || j >= lista.length) return null
+  const posiciones = lista.map((i) => i.position)
+  const nueva = [...lista]
+  ;[nueva[k], nueva[j]] = [nueva[j], nueva[k]]
+  const cod = codigos(rubro.numero, nueva)
+  // Same set of positions, new order; codes renumbered.
+  return nueva.map((i, x) => ({ id: i.id, position: posiciones[x], codigo: cod[x].codigo }))
+}
+
+/**
+ * Moves a rubro one place up or down: it swaps numbers with its neighbour
+ * and both rubros' item codes are renumbered. Null if it can't move.
+ */
+export function moverRubro(
+  s: Snapshot,
+  id: string,
+  dir: -1 | 1
+): { rubros: { id: string; numero: number; position: number }[]; items: { id: string; codigo: string }[] } | null {
+  const lista = rubrosOrdenados(s)
+  const k = lista.findIndex((r) => r.id === id)
+  const j = k + dir
+  if (k < 0 || j < 0 || j >= lista.length) return null
+  const a = lista[k]
+  const b = lista[j]
+  // Numbers by place (1, 2, 3…) so a repeated or skipped number doesn't block the move.
+  const numA = j + 1
+  const numB = k + 1
+  return {
+    rubros: [
+      { id: a.id, numero: numA, position: b.position },
+      { id: b.id, numero: numB, position: a.position },
+    ],
+    items: [...codigos(numA, itemsDe(s, a.id)), ...codigos(numB, itemsDe(s, b.id))],
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Verificación (antes de exportar o certificar)                        */
+/* ------------------------------------------------------------------ */
+
+export type Chequeo = { nivel: 'error' | 'aviso'; texto: string; itemId?: string }
+
+export function verificar(s: Snapshot): Chequeo[] {
+  const out: Chequeo[] = []
+  const detalle = derivarDetalle(s)
+  const insumos = new Map(s.insumos.map((i) => [i.id, i]))
+  for (const r of detalle.calc.rubros) {
+    if (!r.items.length) out.push({ nivel: 'aviso', texto: `El rubro ${r.numero} «${r.descripcion}» no tiene ítems.` })
+    for (const it of r.items) {
+      const nombre = `${it.codigo} ${it.descripcion}`
+      const apu = s.apu.filter((l) => l.itemId === it.id)
+      if (!it.descripcion.trim()) out.push({ nivel: 'error', texto: `El ítem ${it.codigo} no tiene descripción.`, itemId: it.id })
+      if (!apu.length) out.push({ nivel: 'error', texto: `${nombre}: no tiene análisis de precios (P.U. = 0).`, itemId: it.id })
+      for (const l of apu) {
+        const ins = insumos.get(l.insumoId)
+        if (ins && !l.cantidad) out.push({ nivel: 'aviso', texto: `${nombre}: el insumo ${ins.codigo} tiene cantidad 0.`, itemId: it.id })
+      }
+      if (!it.mediciones) out.push({ nivel: 'error', texto: `${nombre}: no tiene mediciones (cantidad 0).`, itemId: it.id })
+      else if (!it.cantidad) out.push({ nivel: 'aviso', texto: `${nombre}: la cantidad da 0.`, itemId: it.id })
+      if (apu.length && !it.puTotal) out.push({ nivel: 'aviso', texto: `${nombre}: el precio unitario da 0.`, itemId: it.id })
+    }
+  }
+  const usados = new Map<string, Set<string>>()
+  for (const l of s.apu) usados.set(l.insumoId, (usados.get(l.insumoId) ?? new Set()).add(l.itemId))
+  for (const i of s.insumos) {
+    const n = usados.get(i.id)?.size ?? 0
+    if (n && !i.precioBase) out.push({ nivel: 'aviso', texto: `El insumo ${i.codigo} (${i.descripcion}) tiene precio 0 y se usa en ${n} ítem${n > 1 ? 's' : ''}.` })
+  }
+  const codigosItem = new Map<string, number>()
+  for (const i of s.items) codigosItem.set(i.codigo, (codigosItem.get(i.codigo) ?? 0) + 1)
+  for (const [c, n] of codigosItem) if (n > 1) out.push({ nivel: 'error', texto: `El código de ítem ${c} está repetido ${n} veces.` })
+  return out.sort((a, b) => (a.nivel === b.nivel ? 0 : a.nivel === 'error' ? -1 : 1))
 }
 
 /* ------------------------------------------------------------------ */

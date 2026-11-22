@@ -12,15 +12,33 @@ import { newId, type PropertyDef } from '@/lib/db-types'
 import { calcular, precioCalculo, parcialMedicion, TIPOS_INSUMO, type PresupuestoCalc } from './calculo'
 import type { PlanillaPresupuesto } from './importar'
 import type { Snapshot } from './local'
+import { proyectoAPlanilla, snapshotAProyecto } from './formato-app'
 
 /** Name of the project-row column that shows the budget total. */
 export const COLUMNA_TOTAL = 'Presupuesto'
+/** Same as COLUMNA_AVANCE in lib/certificacion/server.ts (not imported: that module imports this one). */
+const COLUMNA_AVANCE_FILA = 'Avance certificado'
 
 const id = () => 'c' + randomUUID().replace(/-/g, '').slice(0, 24)
 
+/**
+ * Who sees a CyP: its creator, whoever the creator shared their "Cómputo y
+ * presupuesto" section with, and everyone with access to the page of the
+ * project it's linked to.
+ */
+export async function presupuestoAccesibleWhere(userId: string): Promise<Prisma.PresupuestoWhereInput> {
+  const compartidos = await db.cypCompartido.findMany({ where: { userId }, select: { ownerId: true } })
+  return {
+    OR: [
+      { createdById: { in: [userId, ...compartidos.map((c) => c.ownerId)] } },
+      { page: accessiblePageWhere(userId) },
+    ],
+  }
+}
+
 export async function findAccessiblePresupuesto(userId: string, presupuestoId: string) {
   return db.presupuesto.findFirst({
-    where: { id: presupuestoId, page: accessiblePageWhere(userId) },
+    where: { id: presupuestoId, ...(await presupuestoAccesibleWhere(userId)) },
     select: { id: true, pageId: true, rowId: true },
   })
 }
@@ -37,6 +55,9 @@ export const presupuestoSelect = {
   coefAjuste: true,
   superficieCubierta: true,
   superficiePredio: true,
+  gastosGenerales: true,
+  beneficio: true,
+  impuestos: true,
   totalCache: true,
   createdAt: true,
   updatedAt: true,
@@ -51,7 +72,7 @@ export type PresupuestoInfo = Prisma.PresupuestoGetPayload<{ select: typeof pres
 /** Creates a budget with all its content (a few batched inserts). */
 export async function guardarPlanilla(
   planilla: PlanillaPresupuesto,
-  opts: { pageId: string; rowId: string | null; userId: string }
+  opts: { pageId: string | null; rowId: string | null; userId: string }
 ): Promise<string> {
   const presupuestoId = id()
   const insumoIds = new Map<string, string>()
@@ -99,6 +120,7 @@ export async function guardarPlanilla(
         ubicacion: planilla.ubicacion || null, tipoCambio: planilla.tipoCambio,
         cargasSociales: planilla.cargasSociales, coefAjuste: planilla.coefAjuste,
         superficieCubierta: planilla.superficieCubierta, superficiePredio: planilla.superficiePredio,
+        gastosGenerales: planilla.gastosGenerales ?? 0, beneficio: planilla.beneficio ?? 0, impuestos: planilla.impuestos ?? 0,
       },
     }),
     db.presInsumo.createMany({ data: insumos }),
@@ -282,4 +304,83 @@ export async function cargarSnapshot(presupuestoId: string): Promise<Snapshot | 
     apu,
     mediciones,
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Sección "Cómputo y presupuesto": listado, duplicar, vincular        */
+/* ------------------------------------------------------------------ */
+
+/** Every CyP the user can open, with the project it's linked to. */
+export async function listarPresupuestos(userId: string) {
+  const lista = await db.presupuesto.findMany({
+    where: await presupuestoAccesibleWhere(userId),
+    orderBy: { updatedAt: 'desc' },
+    select: {
+      id: true,
+      createdById: true,
+      nombre: true,
+      totalCache: true,
+      tipoCambio: true,
+      updatedAt: true,
+      rowId: true,
+      row: { select: { title: true, icon: true, database: { select: { pageId: true, page: { select: { title: true } } } } } },
+      _count: { select: { items: true, rubros: true } },
+      contrato: { select: { id: true } },
+    },
+  })
+  const otros = [...new Set(lista.map((p) => p.createdById).filter((x): x is string => !!x && x !== userId))]
+  const nombres = new Map(
+    (await db.user.findMany({ where: { id: { in: otros } }, select: { id: true, name: true, email: true } })).map((u) => [u.id, u.name || u.email])
+  )
+  return lista.map((p) => ({
+    id: p.id,
+    /** Who created it, when it isn't the current user (shared with them). */
+    de: p.createdById && p.createdById !== userId ? (nombres.get(p.createdById) ?? null) : null,
+    nombre: p.nombre,
+    total: p.totalCache,
+    tipoCambio: p.tipoCambio,
+    rubros: p._count.rubros,
+    items: p._count.items,
+    updatedAt: p.updatedAt.toISOString(),
+    conContrato: !!p.contrato,
+    proyecto: p.row
+      ? { rowId: p.rowId!, titulo: p.row.title || 'Sin título', icono: p.row.icon, pageId: p.row.database.pageId, pagina: p.row.database.page.title }
+      : null,
+  }))
+}
+
+/** Copy of a CyP (not linked to any project, no contract): for a new revision. */
+export async function duplicarPresupuesto(presupuestoId: string, userId: string): Promise<string | null> {
+  const s = await cargarSnapshot(presupuestoId)
+  if (!s) return null
+  const planilla = proyectoAPlanilla(snapshotAProyecto(s))
+  return guardarPlanilla(
+    {
+      ...planilla,
+      nombre: `${s.info.nombre} (copia)`.slice(0, 300),
+      descripcion: s.info.descripcion ?? '',
+      ubicacion: s.info.ubicacion ?? '',
+      superficieCubierta: s.info.superficieCubierta,
+      superficiePredio: s.info.superficiePredio,
+    },
+    { pageId: null, rowId: null, userId }
+  )
+}
+
+/**
+ * Links a CyP to a project row: the project's page members can see it, and
+ * the row shows its total (and certified progress).
+ */
+export async function vincularPresupuesto(presupuestoId: string, rowId: string, pageId: string) {
+  await db.presupuesto.update({ where: { id: presupuestoId }, data: { rowId, pageId } })
+  await sincronizarTotal(presupuestoId)
+}
+
+/** Unlinks a CyP from its project; the project's columns are cleared. It stays in the CyP section. */
+export async function desvincularPresupuesto(presupuestoId: string) {
+  const p = await db.presupuesto.findUnique({ where: { id: presupuestoId }, select: { rowId: true } })
+  if (!p?.rowId) return
+  await escribirTotalEnFila(p.rowId, null)
+  await escribirNumeroEnFila(p.rowId, { id: '', name: COLUMNA_AVANCE_FILA, type: 'number', numberFormat: 'percent', showAs: 'bar' }, null)
+  await db.presupuesto.update({ where: { id: presupuestoId }, data: { rowId: null } })
 }
