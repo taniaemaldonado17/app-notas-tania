@@ -44,6 +44,8 @@ export type ContratoData = {
   presupuestoId: string
   montoContrato: number
   coeficientePase: number
+  /** The amount is the CyP's sale price and follows it until the first certificate. */
+  montoSigueCyp: boolean
   anticipoPct: number
   fondoReparoPct: number
   fondoReparoTipo: 'deposito' | 'poliza'
@@ -65,6 +67,6 @@ export type ContratoData = {
 
 export type CertificacionData = {
   contrato: ContratoData | null
-  presupuesto: { totalCache: number; nombre: string; ubicacion: string | null } | null
+  presupuesto: { totalCache: number; nombre: string; ubicacion: string | null; precioVenta: number } | null
   acumuladoPorItem?: Record<string, number>
 }

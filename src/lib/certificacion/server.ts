@@ -8,6 +8,7 @@ import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { calcularPresupuesto, escribirNumeroEnFila } from '@/lib/presupuesto/server'
+import { precioVenta } from '@/lib/presupuesto/calculo'
 import { calcularCertificado, ErrorCertificado, type Antecedente } from './calculo'
 
 export class ErrorCertificacion extends Error {}
@@ -40,6 +41,8 @@ const datosContrato = {
 }
 const condiciones = {
   montoContrato: z.number().finite().positive(),
+  // The amount is the CyP's sale price and follows it until the first certificate.
+  montoSigueCyp: z.boolean(),
   anticipoPct: pct,
   fondoReparoPct: pct,
   fondoReparoTipo: z.enum(['deposito', 'poliza']),
@@ -74,6 +77,7 @@ const certificadoResumen = {
 
 /** Everything the certification tab needs (contract null if there's none yet). */
 export async function cargarCertificacion(presupuestoId: string) {
+  await sincronizarContratoConCyp(presupuestoId)
   const contrato = await db.contrato.findUnique({
     where: { presupuestoId },
     include: {
@@ -82,7 +86,10 @@ export async function cargarCertificacion(presupuestoId: string) {
       curva: { orderBy: { orden: 'asc' } },
     },
   })
-  const presupuesto = await db.presupuesto.findUnique({ where: { id: presupuestoId }, select: { totalCache: true, nombre: true, ubicacion: true } })
+  const r = await calcularPresupuesto(presupuestoId)
+  const presupuesto = r
+    ? { totalCache: r.calc.total, nombre: r.info.nombre, ubicacion: r.info.ubicacion, precioVenta: precioVenta(r.calc.total, r.info).precio }
+    : null
   if (!contrato) return { contrato: null, presupuesto }
 
   // Advance accumulated per item after the last certificate (the next one starts here).
@@ -107,12 +114,16 @@ export async function detalleCertificado(presupuestoId: string, certificadoId: s
 /* Itemizado congelado                                                  */
 /* ------------------------------------------------------------------ */
 
-/** Contract items from the current budget, scaled by monto / costo-costo total. */
-async function itemizadoDesdePresupuesto(presupuestoId: string, montoContrato: number) {
+/**
+ * Contract items from the current budget, scaled by monto / costo-costo total.
+ * Without an amount (null), the amount is the CyP's sale price.
+ */
+async function itemizadoDesdePresupuesto(presupuestoId: string, monto: number | null) {
   const r = await calcularPresupuesto(presupuestoId)
   if (!r) throw new ErrorCertificacion('No se encontró el presupuesto.')
   const total = r.calc.total
   if (!(total > 0)) throw new ErrorCertificacion('El presupuesto da $ 0: cargá precios y cantidades antes de crear el contrato.')
+  const montoContrato = monto ?? Math.round(precioVenta(total, r.info).precio * 100) / 100
   const coef = montoContrato / total
   const items: Omit<Prisma.ContratoItemCreateManyInput, 'contratoId'>[] = []
   for (const rubro of r.calc.rubros) {
@@ -131,7 +142,47 @@ async function itemizadoDesdePresupuesto(presupuestoId: string, montoContrato: n
       })
     }
   }
-  return { coef, items }
+  return { coef, items, montoContrato }
+}
+
+/**
+ * While there are no certificates, a contract whose amount follows the CyP is
+ * rebuilt from it (amount = sale price, itemized list at contract prices).
+ * Called after every CyP edit and when opening the certification tab.
+ */
+export async function sincronizarContratoConCyp(presupuestoId: string) {
+  const c = await db.contrato.findUnique({
+    where: { presupuestoId },
+    select: {
+      id: true,
+      montoContrato: true,
+      montoSigueCyp: true,
+      _count: { select: { certificados: true } },
+      items: { orderBy: { position: 'asc' }, select: { codigo: true, cantidad: true, importe: true } },
+    },
+  })
+  if (!c || !c.montoSigueCyp || c._count.certificados > 0) return
+  let nuevo
+  try {
+    nuevo = await itemizadoDesdePresupuesto(presupuestoId, null)
+  } catch {
+    return // budget at $ 0: leave the contract as it is
+  }
+  const igual =
+    Math.abs(nuevo.montoContrato - c.montoContrato) < 0.005 &&
+    nuevo.items.length === c.items.length &&
+    nuevo.items.every(
+      (i, k) =>
+        i.codigo === c.items[k].codigo &&
+        Math.abs((i.cantidad as number) - c.items[k].cantidad) < 1e-9 &&
+        Math.abs((i.importe as number) - c.items[k].importe) < 0.005
+    )
+  if (igual) return
+  await db.$transaction([
+    db.contratoItem.deleteMany({ where: { contratoId: c.id } }),
+    db.contratoItem.createMany({ data: nuevo.items.map((i) => ({ ...i, contratoId: c.id })) }),
+    db.contrato.update({ where: { id: c.id }, data: { montoContrato: nuevo.montoContrato, coeficientePase: nuevo.coef } }),
+  ])
 }
 
 async function sinCertificados(contratoId: string, que: string) {
@@ -223,10 +274,10 @@ export async function aplicarOperacionCert(presupuestoId: string, op: OperacionC
   switch (op.op) {
     case 'contrato.crear': {
       if (contrato) throw new ErrorCertificacion('Este presupuesto ya tiene contrato.')
-      const { coef, items } = await itemizadoDesdePresupuesto(presupuestoId, op.data.montoContrato)
+      const { coef, items, montoContrato } = await itemizadoDesdePresupuesto(presupuestoId, op.data.montoSigueCyp ? null : op.data.montoContrato)
       const id = cuid()
       await db.$transaction([
-        db.contrato.create({ data: { id, presupuestoId, coeficientePase: coef, ...op.data } }),
+        db.contrato.create({ data: { id, presupuestoId, ...op.data, montoContrato, coeficientePase: coef } }),
         db.contratoItem.createMany({ data: items.map((i) => ({ ...i, contratoId: id })) }),
       ])
       creado = id
@@ -235,8 +286,12 @@ export async function aplicarOperacionCert(presupuestoId: string, op: OperacionC
 
     case 'contrato.editar': {
       const c = necesitaContrato()
-      const { montoContrato, anticipoPct, fondoReparoPct, ...resto } = op.data
-      const cambiaMonto = montoContrato !== undefined && montoContrato !== c.montoContrato
+      const { montoContrato, montoSigueCyp, anticipoPct, fondoReparoPct, ...resto } = op.data
+      const actual = await db.contrato.findUnique({ where: { id: c.id }, select: { montoSigueCyp: true } })
+      const sigue = montoSigueCyp ?? actual?.montoSigueCyp ?? false
+      const cambiaMonto =
+        (montoSigueCyp !== undefined && montoSigueCyp !== actual?.montoSigueCyp) ||
+        (!sigue && montoContrato !== undefined && montoContrato !== c.montoContrato)
       const cambiaCondiciones =
         cambiaMonto ||
         (anticipoPct !== undefined && anticipoPct !== c.anticipoPct) ||
@@ -245,12 +300,15 @@ export async function aplicarOperacionCert(presupuestoId: string, op: OperacionC
         await sinCertificados(c.id, 'Cambiar el monto, el anticipo o el fondo de reparo')
       }
       if (cambiaMonto) {
-        // New amount: re-scale the frozen itemized list (no certificates, checked above).
-        const { coef, items } = await itemizadoDesdePresupuesto(presupuestoId, montoContrato)
+        // New amount (typed, or back to the sale price): re-scale the itemized list (no certificates, checked above).
+        const nuevo = await itemizadoDesdePresupuesto(presupuestoId, sigue ? null : (montoContrato ?? c.montoContrato))
         await db.$transaction([
           db.contratoItem.deleteMany({ where: { contratoId: c.id } }),
-          db.contratoItem.createMany({ data: items.map((i) => ({ ...i, contratoId: c.id })) }),
-          db.contrato.update({ where: { id: c.id }, data: { montoContrato, coeficientePase: coef } }),
+          db.contratoItem.createMany({ data: nuevo.items.map((i) => ({ ...i, contratoId: c.id })) }),
+          db.contrato.update({
+            where: { id: c.id },
+            data: { montoContrato: nuevo.montoContrato, coeficientePase: nuevo.coef, montoSigueCyp: sigue },
+          }),
         ])
       }
       await db.contrato.update({
@@ -263,11 +321,12 @@ export async function aplicarOperacionCert(presupuestoId: string, op: OperacionC
     case 'contrato.actualizarItemizado': {
       const c = necesitaContrato()
       await sinCertificados(c.id, 'Actualizar el itemizado desde el presupuesto')
-      const { coef, items } = await itemizadoDesdePresupuesto(presupuestoId, c.montoContrato)
+      const sigue = (await db.contrato.findUnique({ where: { id: c.id }, select: { montoSigueCyp: true } }))?.montoSigueCyp
+      const nuevo = await itemizadoDesdePresupuesto(presupuestoId, sigue ? null : c.montoContrato)
       await db.$transaction([
         db.contratoItem.deleteMany({ where: { contratoId: c.id } }),
-        db.contratoItem.createMany({ data: items.map((i) => ({ ...i, contratoId: c.id })) }),
-        db.contrato.update({ where: { id: c.id }, data: { coeficientePase: coef } }),
+        db.contratoItem.createMany({ data: nuevo.items.map((i) => ({ ...i, contratoId: c.id })) }),
+        db.contrato.update({ where: { id: c.id }, data: { montoContrato: nuevo.montoContrato, coeficientePase: nuevo.coef } }),
       ])
       break
     }

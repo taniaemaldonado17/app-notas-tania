@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { TIPOS_INSUMO } from './calculo'
 import { cargarSnapshot, sincronizarTotal } from './server'
+import { sincronizarContratoConCyp } from '@/lib/certificacion/server'
 import { moverItem, moverRubro } from './local'
 
 export class ErrorEdicion extends Error {}
@@ -343,7 +344,10 @@ async function aplicarUna(presupuestoId: string, op: Operacion): Promise<string 
 
 async function cerrarEdicion(presupuestoId: string) {
   await db.presupuesto.update({ where: { id: presupuestoId }, data: { updatedAt: new Date() } })
-  return sincronizarTotal(presupuestoId)
+  const total = await sincronizarTotal(presupuestoId)
+  // A contract that follows the CyP (no certificates yet) gets the new sale price.
+  await sincronizarContratoConCyp(presupuestoId)
+  return total
 }
 
 /** Applies one edit; returns the new data needed by the client (created id + total). */

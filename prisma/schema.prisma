@@ -366,6 +366,10 @@ model Contrato {
   montoContrato     Float
   // montoContrato / costo-costo total at freeze time
   coeficientePase   Float    @default(1)
+  // true: the amount is the CyP's sale price (costo-costo x its pass
+  // coefficient) and follows the CyP until the first certificate.
+  // false: an amount typed by hand.
+  montoSigueCyp     Boolean  @default(true)
   anticipoPct       Float    @default(0)
   fondoReparoPct    Float    @default(0.05)
   // 'deposito' | 'poliza'

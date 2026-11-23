@@ -49,6 +49,7 @@ export function CertificacionTab({ presupuestoId, onChanged }: { presupuestoId: 
   }
 
   const total = data.presupuesto?.totalCache ?? 0
+  const precioVentaCyp = data.presupuesto?.precioVenta ?? total
   const contrato = data.contrato
 
   if (!contrato) {
@@ -58,8 +59,8 @@ export function CertificacionTab({ presupuestoId, onChanged }: { presupuestoId: 
           <FileSignature className="mx-auto h-10 w-10 text-muted-foreground/60" />
           <h2 className="mt-3 text-lg font-semibold">Certificación de obra</h2>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Creá el contrato para empezar a certificar: monto, anticipo y fondo de reparo. Se congela el itemizado del presupuesto
-            ({fmtARS(total)} costo-costo) con precios de contrato.
+            Creá el contrato para empezar a certificar: monto, anticipo y fondo de reparo. El monto es el precio de venta del CyP
+            ({fmtARS(precioVentaCyp)}) y los ítems van a precio de contrato.
           </p>
           <Button className="mt-5" onClick={() => setContratoOpen(true)} disabled={!(total > 0)}>
             <Plus className="mr-1.5 h-4 w-4" />
@@ -73,6 +74,7 @@ export function CertificacionTab({ presupuestoId, onChanged }: { presupuestoId: 
           presupuestoId={presupuestoId}
           contrato={null}
           totalPresupuesto={total}
+          precioVenta={precioVentaCyp}
           hayCertificados={false}
           onSaved={despues}
         />
@@ -244,6 +246,7 @@ export function CertificacionTab({ presupuestoId, onChanged }: { presupuestoId: 
         presupuestoId={presupuestoId}
         contrato={contrato}
         totalPresupuesto={total}
+          precioVenta={precioVentaCyp}
         hayCertificados={certs.length > 0}
         onSaved={despues}
       />
@@ -272,6 +275,14 @@ function FichaContrato({ contrato: c }: { contrato: ContratoData }) {
     ['Fin de obra', c.fechaFin ? fechaAR(c.fechaFin) : null],
     ['Plazo', c.plazo],
     ['Coeficiente de pase', fmtNumFino(c.coeficientePase)],
+    [
+      'Monto',
+      c.certificados.length
+        ? 'congelado desde el primer certificado'
+        : c.montoSigueCyp
+          ? 'precio de venta del CyP (se actualiza solo)'
+          : 'pactado a mano',
+    ],
     ['Anticipo financiero', fmtPct(c.anticipoPct)],
     [
       'Fondo de reparo',

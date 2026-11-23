@@ -13,6 +13,8 @@ import { fmtARS, fmtInput, fmtNumFino, parseNumeroAR } from '@/lib/presupuesto/f
 import { cn } from '@/lib/utils'
 
 type Form = {
+  /** Amount = the CyP's sale price, kept up to date until the first certificate. */
+  sigue: boolean
   montoContrato: string
   anticipoPct: string
   fondoReparoPct: string
@@ -30,10 +32,11 @@ type Form = {
   plazo: string
 }
 
-function formDe(c: ContratoData | null, totalPresupuesto: number): Form {
+function formDe(c: ContratoData | null, precioVenta: number): Form {
   const pct = (v: number) => fmtInput(Math.round(v * 1e6) / 1e4)
   return {
-    montoContrato: fmtInput(c ? c.montoContrato : Math.round(totalPresupuesto * 100) / 100),
+    sigue: c ? c.montoSigueCyp : true,
+    montoContrato: fmtInput(c ? c.montoContrato : Math.round(precioVenta * 100) / 100),
     anticipoPct: c ? pct(c.anticipoPct) : '0',
     fondoReparoPct: c ? pct(c.fondoReparoPct) : '5',
     fondoReparoTipo: c?.fondoReparoTipo ?? 'deposito',
@@ -58,6 +61,7 @@ export function ContratoDialog({
   presupuestoId,
   contrato,
   totalPresupuesto,
+  precioVenta,
   hayCertificados,
   onSaved,
 }: {
@@ -66,16 +70,18 @@ export function ContratoDialog({
   presupuestoId: string
   contrato: ContratoData | null
   totalPresupuesto: number
+  /** The CyP's sale price (costo-costo x its pass coefficient). */
+  precioVenta: number
   hayCertificados: boolean
   onSaved: () => void
 }) {
-  const [f, setF] = useState<Form>(() => formDe(contrato, totalPresupuesto))
+  const [f, setF] = useState<Form>(() => formDe(contrato, precioVenta))
   const [guardando, setGuardando] = useState(false)
   useEffect(() => {
-    if (open) setF(formDe(contrato, totalPresupuesto))
-  }, [open, contrato, totalPresupuesto])
+    if (open) setF(formDe(contrato, precioVenta))
+  }, [open, contrato, precioVenta])
 
-  const monto = parseNumeroAR(f.montoContrato)
+  const monto = f.sigue ? precioVenta : parseNumeroAR(f.montoContrato)
   const coef = monto && totalPresupuesto ? monto / totalPresupuesto : null
   const bloqueado = hayCertificados
 
@@ -88,8 +94,8 @@ export function ContratoDialog({
     }
     let data
     try {
-      const montoContrato = n('Monto de contrato', f.montoContrato)
-      if (!montoContrato || montoContrato <= 0) throw new Error('Cargá el monto de contrato')
+      const montoContrato = f.sigue ? Math.round(precioVenta * 100) / 100 : n('Monto de contrato', f.montoContrato)
+      if (!montoContrato || montoContrato <= 0) throw new Error(f.sigue ? 'El precio de venta del CyP da $ 0' : 'Cargá el monto de contrato')
       const anticipo = n('Anticipo', f.anticipoPct) ?? 0
       const fondo = n('Fondo de reparo', f.fondoReparoPct) ?? 0
       if (anticipo < 0 || anticipo > 100 || fondo < 0 || fondo > 100) throw new Error('Los porcentajes van de 0 a 100')
@@ -98,6 +104,7 @@ export function ContratoDialog({
       }
       data = {
         montoContrato,
+        montoSigueCyp: f.sigue,
         anticipoPct: anticipo / 100,
         fondoReparoPct: fondo / 100,
         fondoReparoTipo: f.fondoReparoTipo,
@@ -131,7 +138,7 @@ export function ContratoDialog({
   }
 
   const campo = (
-    k: keyof Form,
+    k: Exclude<keyof Form, 'sigue'>,
     label: string,
     opts: { sufijo?: string; placeholder?: string; num?: boolean; tipo?: string; disabled?: boolean; className?: string } = {}
   ) => (
@@ -160,8 +167,8 @@ export function ContratoDialog({
           <DialogHeader>
             <DialogTitle>{contrato ? 'Contrato' : 'Crear contrato'}</DialogTitle>
             <DialogDescription>
-              Al crear el contrato se congela el itemizado del presupuesto con precios de contrato (P.U. costo-costo × coeficiente de
-              pase), así el 100 % certificado da exactamente el monto de contrato.
+              El itemizado del CyP pasa al contrato con precios de contrato (P.U. costo-costo × coeficiente de pase), así el 100 %
+              certificado da exactamente el monto de contrato. Se congela al emitir el primer certificado.
             </DialogDescription>
           </DialogHeader>
 
@@ -172,12 +179,37 @@ export function ContratoDialog({
                 Con certificados emitidos, el monto, el anticipo y el fondo de reparo ya no se pueden cambiar.
               </p>
             )}
+            <label className={cn('flex items-start gap-2 text-sm', bloqueado && 'opacity-60')}>
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={f.sigue}
+                disabled={bloqueado}
+                onChange={(e) => setF({ ...f, sigue: e.target.checked, montoContrato: e.target.checked ? fmtInput(Math.round(precioVenta * 100) / 100) : f.montoContrato })}
+              />
+              <span>
+                Igual al precio de venta del cómputo y presupuesto
+                <span className="block text-xs text-muted-foreground">
+                  Costo-costo × coeficiente de pase del Resumen. Se actualiza solo cada vez que cambiás el CyP, hasta el primer
+                  certificado.
+                </span>
+              </span>
+            </label>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {campo('montoContrato', 'Monto de contrato', { sufijo: '$', num: true, disabled: bloqueado, className: 'sm:col-span-3' })}
+              {f.sigue ? (
+                <div className="space-y-1.5 sm:col-span-3">
+                  <Label>Monto de contrato</Label>
+                  <div className="flex h-9 items-center justify-end rounded-md border border-input bg-muted/40 px-3 text-sm font-semibold tabular-nums">
+                    {fmtARS(precioVenta)}
+                  </div>
+                </div>
+              ) : (
+                campo('montoContrato', 'Monto de contrato pactado', { sufijo: '$', num: true, disabled: bloqueado, className: 'sm:col-span-3' })
+              )}
             </div>
             <p className="-mt-1 text-xs text-muted-foreground">
-              Presupuesto costo-costo: {fmtARS(totalPresupuesto)}
-              {coef ? ` · coeficiente de pase ${fmtNumFino(coef)}` : ''}
+              Costo-costo del CyP: {fmtARS(totalPresupuesto)} · precio de venta: {fmtARS(precioVenta)}
+              {coef ? ` · coeficiente de pase del contrato ${fmtNumFino(coef)}` : ''}
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {campo('anticipoPct', 'Anticipo financiero', { sufijo: '%', num: true, disabled: bloqueado })}
