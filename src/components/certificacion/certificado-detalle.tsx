@@ -186,12 +186,30 @@ export function CertificadoDetalle({
                   </>
                 )}
               </div>
-              <Button size="sm" asChild>
-                <a href={`/api/presupuestos/${presupuestoId}/certificados/${c.id}/pdf`} target="_blank" rel="noreferrer">
-                  <FileDown className="mr-1.5 h-4 w-4" />
-                  Descargar PDF
-                </a>
-              </Button>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button size="sm" variant="outline" asChild>
+                  <a
+                    href={`/api/presupuestos/${presupuestoId}/certificados/${c.id}/pdf?tipo=foja`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Mismo avance, a costo-costo, sin anticipo ni fondo de reparo: para pagarle al contratista"
+                  >
+                    <FileDown className="mr-1.5 h-4 w-4" />
+                    Foja contratista (costo-costo)
+                  </a>
+                </Button>
+                <Button size="sm" asChild>
+                  <a
+                    href={`/api/presupuestos/${presupuestoId}/certificados/${c.id}/pdf`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="A precio de contrato, con anticipo y fondo de reparo: para cobrarle al comitente"
+                  >
+                    <FileDown className="mr-1.5 h-4 w-4" />
+                    Certificado comitente
+                  </a>
+                </Button>
+              </div>
             </DialogFooter>
           </>
         )}

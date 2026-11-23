@@ -3,10 +3,13 @@ import { db } from '@/lib/db'
 import { getAuthUserId } from '@/lib/auth-helpers'
 import { findAccessiblePresupuesto } from '@/lib/presupuesto/server'
 import { detalleCertificado } from '@/lib/certificacion/server'
-import { generarPdfCertificado } from '@/lib/certificacion/pdf'
+import { generarPdfCertificado, generarPdfFoja } from '@/lib/certificacion/pdf'
 
-/** The certificate as a PDF (opens in the browser). */
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string; certId: string }> }) {
+/**
+ * The certificate as a PDF (opens in the browser). ?tipo=foja: the contractor's
+ * measurement sheet for the same period, at costo-costo.
+ */
+export async function GET(req: Request, { params }: { params: Promise<{ id: string; certId: string }> }) {
   const userId = await getAuthUserId()
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -25,19 +28,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   }
 
   const { items, ...datosContrato } = contrato
-  const pdf = generarPdfCertificado({
+  const foja = new URL(req.url).searchParams.get('tipo') === 'foja'
+  const datos = {
     obra: presupuesto.nombre,
     ubicacion: presupuesto.ubicacion,
     contrato: datosContrato,
     items,
     certificado: { ...cert, rectificadoEn: cert.rectificadoEn?.toISOString() ?? null },
-  })
+  }
+  const pdf = foja ? generarPdfFoja(datos) : generarPdfCertificado(datos)
 
-  const nombre = `Certificado N${cert.numero} - ${presupuesto.nombre}`.replace(/[^\p{L}\p{N} ._-]/gu, '').slice(0, 120)
+  const nombre = `${foja ? 'Foja de medicion' : 'Certificado'} N${cert.numero} - ${presupuesto.nombre}`.replace(/[^\p{L}\p{N} ._-]/gu, '').slice(0, 120)
   return new Response(pdf, {
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="certificado-${cert.numero}.pdf"; filename*=UTF-8''${encodeURIComponent(nombre)}.pdf`,
+      'Content-Disposition': `inline; filename="${foja ? 'foja' : 'certificado'}-${cert.numero}.pdf"; filename*=UTF-8''${encodeURIComponent(nombre)}.pdf`,
       'Cache-Control': 'private, no-store',
     },
   })
