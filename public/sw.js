@@ -10,7 +10,7 @@
  *
  * Bump VERSION to drop old caches.
  */
-const VERSION = 'v3'
+const VERSION = 'v4'
 const SHELL = `shell-${VERSION}`
 const STATIC = `static-${VERSION}`
 const API = `api-${VERSION}`
@@ -75,6 +75,22 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return
   const url = new URL(req.url)
   if (url.origin !== self.location.origin) return
+
+  // Calculadora de materiales (its page and files): network first, kept for offline use.
+  if (url.pathname.startsWith('/calculadora/')) {
+    event.respondWith(
+      conTiempo(req)
+        .then((res) => {
+          if (res.ok) {
+            const copia = res.clone()
+            caches.open(STATIC).then((c) => c.put(req, copia))
+          }
+          return res
+        })
+        .catch(() => caches.match(req, { cacheName: STATIC, ignoreSearch: true }).then((r) => r || Response.error()))
+    )
+    return
+  }
 
   // App pages
   if (req.mode === 'navigate') {

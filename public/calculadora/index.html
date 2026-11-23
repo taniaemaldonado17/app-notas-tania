@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Calculadora de materiales</title>
+<!--
+  Calculadora de materiales de la app "Cómputo y Presupuesto" (app_computo), embebida en MALTA.
+  css/, js/ y datos/ son copias sin cambios de esa app; puente.js reemplaza el guardado en el
+  navegador por la base de MALTA y le pasa el cómputo y presupuesto abierto.
+  Para actualizar: copiar de nuevo esos archivos (ver LEEME.md).
+-->
+<link rel="stylesheet" href="css/estilos.css">
+<style>
+  /* Inside MALTA the panel fills the window: no scrim, no slide-in border. */
+  .cscrim { display: none !important; }
+  aside.calc { width: 100% !important; border-right: 0 !important; box-shadow: none !important; }
+  .cargando { font: 14px system-ui, sans-serif; color: #888; text-align: center; padding: 80px 16px; }
+</style>
+</head>
+<body>
+<div id="calcRoot"><p class="cargando">Cargando la calculadora…</p></div>
+<div id="toastRoot"></div>
+<script src="js/vendor/exceljs.min.js"></script>
+<script src="js/calculo.js"></script>
+<script src="js/consumo.js"></script>
+<script src="js/elementos.js"></script>
+<script src="datos/catalogo-consumos.js"></script>
+<script src="puente.js"></script>
+</body>
+</html>

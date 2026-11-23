@@ -9,6 +9,7 @@ import * as api from '@/lib/api'
 import { fmtARS, fmtUSD } from '@/lib/presupuesto/format'
 import { useWorkspace } from '@/lib/workspace-store'
 import { PresupuestoView } from './presupuesto-view'
+import { BotonCalculadora, CalculadoraMateriales } from './calculadora'
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
 
@@ -19,6 +20,8 @@ const fecha = (iso: string) => new Date(iso).toLocaleDateString('es-AR', { day: 
 export function CypLista() {
   const [lista, setLista] = useState<api.CypResumen[] | null>(null)
   const [trabajando, setTrabajando] = useState(false)
+  const [calcOpen, setCalcOpen] = useState(false)
+  const cerrarCalc = useCallback(() => setCalcOpen(false), [])
   const inputRef = useRef<HTMLInputElement>(null)
   const openPresupuestoId = useWorkspace((s) => s.openPresupuestoId)
   const openPresupuesto = useWorkspace((s) => s.openPresupuesto)
@@ -100,7 +103,8 @@ export function CypLista() {
           Armá el cómputo y presupuesto acá (de cero, importando el Excel o el respaldo .json de la app de cómputo) y vinculalo a
           su proyecto con «Importar CyP» en la tarjeta del proyecto. Es el mismo: lo que cambies acá o allá se ve en los dos lados.
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <BotonCalculadora onClick={() => setCalcOpen(true)} />
           <Button variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={trabajando}>
             <Upload className="mr-1.5 h-4 w-4" />
             Importar
@@ -200,6 +204,7 @@ export function CypLista() {
         }}
       />
 
+      {calcOpen && <CalculadoraMateriales onClose={cerrarCalc} />}
       {openPresupuestoId && (
         <PresupuestoView
           key={openPresupuestoId}

@@ -29,6 +29,7 @@ model User {
   rowsCreated   DbRow[]
   cypCompartidos CypCompartido[] @relation("CypDuenio")
   cypRecibidos   CypCompartido[] @relation("CypInvitado")
+  calculadora    CalculadoraMateriales?
   // Secret for the read-only calendar feed (.ics) the user subscribes to on
   // iPhone / iPad / Google Calendar. Regenerating it revokes the old link.
   // (Plain index, not @unique: adding a unique constraint makes `db push`
@@ -222,6 +223,16 @@ model CypCompartido {
 
   @@unique([ownerId, userId])
   @@index([userId])
+}
+
+// Calculadora de materiales (from the CyP app): the user's catalogue of works,
+// mixes, materials and assumptions plus their calculation lists, as that app
+// stores them (one JSON document).
+model CalculadoraMateriales {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data      Json
+  updatedAt DateTime @updatedAt
 }
 
 // Single-use invitation link to a page. Also allows creating an account

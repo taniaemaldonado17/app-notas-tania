@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { ArrowDown, ArrowLeft, ArrowUp, ChevronRight, Copy, Download, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { EstadoSincro } from './estado-sincro'
+import { BotonCalculadora, CalculadoraMateriales } from './calculadora'
 import { PresupuestoProvider, usePresupuesto } from './presupuesto-context'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -53,18 +54,20 @@ function Pantalla({ id, onClose, onChanged }: { id: string; onClose: () => void;
   const [tab, setTab] = useState<Tab>('presupuesto')
   const [itemId, setItemId] = useState<string | null>(null)
   const [paramsOpen, setParamsOpen] = useState(false)
+  const [calcOpen, setCalcOpen] = useState(false)
+  const cerrarCalc = useCallback(() => setCalcOpen(false), [])
 
   // Esc closes the view (dialogs handle their own Esc first).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key !== 'Escape' || itemId || paramsOpen) return
+      if (e.key !== 'Escape' || itemId || paramsOpen || calcOpen) return
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return
       onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [itemId, paramsOpen, onClose])
+  }, [itemId, paramsOpen, calcOpen, onClose])
 
   async function eliminar() {
     if (!data) return
@@ -104,6 +107,7 @@ function Pantalla({ id, onClose, onChanged }: { id: string; onClose: () => void;
           <span className="hidden sm:inline">Volver</span>
         </Button>
         <div className="min-w-0 flex-1 truncate text-sm font-medium">{data?.info.nombre ?? 'Cómputo y presupuesto'}</div>
+        <BotonCalculadora compacto onClick={() => setCalcOpen(true)} />
         <EstadoSincro />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -188,6 +192,7 @@ function Pantalla({ id, onClose, onChanged }: { id: string; onClose: () => void;
       </div>
 
       <ItemDialog itemId={itemId} onClose={cerrarItem} />
+      {calcOpen && <CalculadoraMateriales presupuestoId={id} onClose={cerrarCalc} />}
       {data && (
         <ParametrosDialog open={paramsOpen} onOpenChange={setParamsOpen} info={data.info} />
       )}
