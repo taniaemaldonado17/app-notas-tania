@@ -620,6 +620,19 @@ function OptionsEditor({ db, prop, row, onDone }: { db: DatabaseDef; prop: Prope
     }
   }
 
+  function removeOption(o: SelectOption) {
+    if (!window.confirm(`¿Eliminar la opción “${o.name}”? Se quitará de todas las filas que la usen.`)) return
+    ws.updateDatabase(db.id, {
+      properties: db.properties.map((p) =>
+        p.id === prop.id ? { ...p, options: options.filter((x) => x.id !== o.id) } : p
+      ),
+    })
+    if (selected.includes(o.id)) {
+      const next = selected.filter((x) => x !== o.id)
+      ws.updateRowValues(row.id, { [prop.id]: multi && next.length ? next : null })
+    }
+  }
+
   function create() {
     const name = query.trim()
     if (!name) return
@@ -657,15 +670,25 @@ function OptionsEditor({ db, prop, row, onDone }: { db: DatabaseDef; prop: Prope
           {multi ? 'Elegí una o más opciones' : 'Elegí una opción'}
         </p>
         {filtered.map((o) => (
-          <button
-            key={o.id}
-            type="button"
-            onClick={() => choose(o.id)}
-            className="flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-accent"
-          >
-            <OptionChip option={o} />
-            {selected.includes(o.id) && <Check className="ml-auto h-3.5 w-3.5 text-muted-foreground" />}
-          </button>
+          <div key={o.id} className="group flex items-center rounded hover:bg-accent">
+            <button
+              type="button"
+              onClick={() => choose(o.id)}
+              className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1 text-left"
+            >
+              <OptionChip option={o} />
+              {selected.includes(o.id) && <Check className="ml-auto h-3.5 w-3.5 text-muted-foreground" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => removeOption(o)}
+              className="mr-1 rounded p-1 text-muted-foreground opacity-0 hover:bg-background hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100"
+              aria-label={`Eliminar ${o.name}`}
+              title="Eliminar opción"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
         ))}
         {q && !exact && (
           <button
