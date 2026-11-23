@@ -7,7 +7,7 @@ Copias sin cambios de esa app:
 - `js/vendor/exceljs.min.js` (y su licencia)
 - `datos/catalogo-consumos.js`
 
-Propios de MALTA: `index.html` (página que la carga) y `puente.js` (guardado en la cuenta,
-proyecto abierto, tema y cierre).
+Propios de MALTA: `index.html` (página que la carga), `puente.js` (guardado en la cuenta,
+proyecto abierto, tema y cierre) y `tema-malta.css` (colores, letra y bordes de MALTA).
 
 Para actualizar la calculadora: copiar de nuevo esos archivos desde `app_computo`.

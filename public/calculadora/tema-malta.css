@@ -1,0 +1,35 @@
+/*
+ * tema-malta.css — The calculator with MALTA's look (colours, type, corners).
+ * Loaded after css/estilos.css (the CyP app's, unchanged): it only overrides
+ * its variables and a few rules, so updating the calculator keeps this look.
+ * Values mirror src/app/globals.css (:root and .dark).
+ */
+:root[data-theme="light"] {
+  --bg: #ffffff; --surface: #ffffff; --surface2: #f2f2f7; --line: #e3e3e8; --line2: #ececf1;
+  --fg: #1d1d1f; --muted: #86868b; --accent: #007aff; --accent-soft: rgba(0, 122, 255, 0.12); --accent-ink: #ffffff;
+  --rubro: #f2f2f7; --shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  --calc: #007aff; --calc-soft: rgba(0, 122, 255, 0.12); --calc-ink: #ffffff;
+}
+:root[data-theme="dark"] {
+  --bg: #1f1f24; --surface: #29292e; --surface2: #2a2a30; --line: #38383e; --line2: #323238;
+  --fg: #e8e8ed; --muted: #8e8e93; --accent: #0a84ff; --accent-soft: rgba(10, 132, 255, 0.18); --accent-ink: #ffffff;
+  --rubro: #323238; --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --calc: #0a84ff; --calc-soft: rgba(10, 132, 255, 0.18); --calc-ink: #ffffff;
+  color-scheme: dark;
+}
+:root {
+  --f-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", system-ui, sans-serif;
+  --f-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
+}
+
+/* Header like MALTA's: neutral bar with a bottom border, not a coloured band. */
+.ch { background: var(--bg) !important; color: var(--fg) !important; border-bottom: 1px solid var(--line); }
+.ch small { color: var(--muted); }
+.ch .ib { color: var(--muted) !important; }
+.ch .ib:hover { background: var(--surface2) !important; color: var(--fg) !important; }
+
+/* Softer corners, like the app's cards, buttons and fields. */
+.panel, .chelp, .plist { border-radius: 12px; }
+.btn, .search, .form input, .form select, .form textarea, .picker input, .kv input, .citem { border-radius: 8px; }
+.btn:hover { background: var(--surface2); }
+.btn.cprim:hover { filter: brightness(1.08); background: var(--calc); }

@@ -34,7 +34,7 @@ export function CalculadoraMateriales({ presupuestoId, onClose }: { presupuestoI
   )
 }
 
-/** Green button, like in the CyP app. */
+/** Dark grey button with white text. */
 export function BotonCalculadora({ onClick, className, compacto }: { onClick: () => void; className?: string; compacto?: boolean }) {
   return (
     <button
@@ -42,7 +42,7 @@ export function BotonCalculadora({ onClick, className, compacto }: { onClick: ()
       onClick={onClick}
       title="Calculadora de materiales: herramienta general, no cambia el presupuesto"
       className={cn(
-        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-teal-700 px-2.5 text-sm font-semibold text-teal-700 transition hover:bg-teal-700/10 dark:border-teal-400 dark:text-teal-400 dark:hover:bg-teal-400/10',
+        'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-neutral-700 px-3 text-sm font-medium text-white shadow-sm transition hover:bg-neutral-800 dark:bg-neutral-600 dark:hover:bg-neutral-500',
         className
       )}
     >
