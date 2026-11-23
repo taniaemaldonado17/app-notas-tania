@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Calculator, Copy, Download, FileSignature, Link2, Loader2, MoreHorizontal, Plus, Trash2, Upload } from 'lucide-react'
+import { Calculator, Copy, Download, FileDown, FileSignature, Link2, Loader2, MoreHorizontal, Plus, Trash2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import * as api from '@/lib/api'
@@ -168,6 +168,12 @@ export function CypLista() {
                   <DropdownMenuItem onClick={() => void duplicar(c)}>
                     <Copy className="mr-2 h-4 w-4" />
                     Duplicar (nueva revisión)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <a href={api.urlPdfPresupuesto(c.id)} download>
+                      <FileDown className="mr-2 h-4 w-4" />
+                      Descargar PDF (A4)
+                    </a>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <a href={api.urlExportarPresupuesto(c.id, 'xlsx')} download>

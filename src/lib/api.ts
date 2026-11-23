@@ -710,6 +710,11 @@ export async function desvincularPresupuesto(rowId: string): Promise<void> {
   await jsonFetch(`${API_BASE}/rows/${rowId}/presupuesto`, { method: 'DELETE' })
 }
 
+/** The CyP as an A4 portrait PDF. */
+export function urlPdfPresupuesto(id: string) {
+  return `${API_BASE}/presupuestos/${id}/pdf`
+}
+
 /** Download link in the CyP app's formats. */
 export function urlExportarPresupuesto(id: string, formato: 'xlsx' | 'json') {
   return `${API_BASE}/presupuestos/${id}/exportar?formato=${formato}`

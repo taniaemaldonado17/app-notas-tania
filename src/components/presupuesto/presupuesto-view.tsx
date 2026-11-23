@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { ArrowDown, ArrowLeft, ArrowUp, ChevronRight, Copy, Download, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronRight, Copy, Download, FileDown, Loader2, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { EstadoSincro } from './estado-sincro'
 import { BotonCalculadora, CalculadoraMateriales } from './calculadora'
 import { PresupuestoProvider, usePresupuesto } from './presupuesto-context'
@@ -119,6 +119,12 @@ function Pantalla({ id, onClose, onChanged }: { id: string; onClose: () => void;
             <DropdownMenuItem onClick={() => setParamsOpen(true)} disabled={!data}>
               <Pencil className="mr-2 h-4 w-4" />
               Editar datos y parámetros
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <a href={api.urlPdfPresupuesto(id)} download>
+                <FileDown className="mr-2 h-4 w-4" />
+                Descargar PDF (A4)
+              </a>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <a href={api.urlExportarPresupuesto(id, 'xlsx')} download>
