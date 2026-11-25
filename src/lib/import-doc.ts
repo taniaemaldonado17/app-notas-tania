@@ -5,6 +5,7 @@
  */
 import type { BlockNoteEditor } from '@blocknote/core'
 import { uploadFile } from '@/lib/api'
+import { paletteColor } from '@/lib/word-paste'
 
 export const IMPORT_ACCEPT = [
   '.md',
@@ -31,9 +32,51 @@ function base64ToBytes(b64: string): Uint8Array {
   return bytes
 }
 
-/** Word → HTML. Pictures are uploaded like any image (not kept inside the page). */
+const MIME: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' }
+
+/**
+ * Pictures in the page header (usually the logo), which the Word converter
+ * leaves out: uploaded and returned as <img> tags with their size in Word.
+ */
+async function headerImagesHtml(file: File): Promise<string> {
+  const { default: JSZip } = await import('jszip')
+  const zip = await JSZip.loadAsync(await file.arrayBuffer())
+  const seen = new Set<string>()
+  let html = ''
+  const headers = Object.keys(zip.files).filter((n) => /^word\/header\d*\.xml$/.test(n)).sort()
+  for (const name of headers) {
+    const xml = await zip.file(name)!.async('string')
+    const relsXml = await zip.file(name.replace('word/', 'word/_rels/') + '.rels')?.async('string')
+    if (!relsXml) continue
+    const rels = new Map(Array.from(relsXml.matchAll(/<Relationship\b[^>]*>/g)).map((m) => [/Id="([^"]+)"/.exec(m[0])?.[1], /Target="([^"]+)"/.exec(m[0])?.[1]]))
+    // Each drawing: its size (EMU) and the picture it shows.
+    for (const d of xml.matchAll(/<w:drawing>[\s\S]*?<\/w:drawing>/g)) {
+      const id = /r:embed="([^"]+)"/.exec(d[0])?.[1]
+      const target = id ? rels.get(id) : undefined
+      if (!target || seen.has(target)) continue
+      seen.add(target)
+      const path = 'word/' + target.replace(/^\.?\//, '')
+      const ext = path.split('.').pop()?.toLowerCase() ?? ''
+      const type = MIME[ext]
+      const data = zip.file(path)
+      if (!type || !data) continue
+      try {
+        const up = await uploadFile(new File([(await data.async('uint8array')) as BlobPart], `logo-${seen.size}.${ext}`, { type }))
+        const cx = Number(/<wp:extent cx="(\d+)"/.exec(d[0])?.[1])
+        const width = cx ? Math.round(cx / 9525) : 0
+        html += `<p><img src="${up.url}"${width ? ` width="${width}"` : ''}></p>`
+      } catch {
+        // Skip a logo that can't be uploaded.
+      }
+    }
+  }
+  return html
+}
+
+/** Word → HTML. Pictures are uploaded like any image (not kept inside the page), header logo included. */
 async function docxToHtml(file: File): Promise<string> {
   const mammoth = await import('mammoth')
+  const header = await headerImagesHtml(file).catch(() => '')
   let n = 0
   const result = await mammoth.convertToHtml(
     { arrayBuffer: await file.arrayBuffer() },
@@ -49,9 +92,60 @@ async function docxToHtml(file: File): Promise<string> {
           return { src: '' }
         }
       }),
+      transformDocument: (mammoth as unknown as { transforms: { paragraph: (f: unknown) => never } }).transforms.paragraph(markParagraph),
+      styleMap: WORD_STYLE_MAP,
     }
   )
-  return result.value
+  return header + applyMarks(result.value)
+}
+
+/* Word look the converter would drop: alignment, titles made with big letters, highlights. */
+
+type WordRun = { type: string; value?: string; fontSize?: number | null; isBold?: boolean; children?: WordRun[] }
+type WordParagraph = WordRun & { styleId?: string | null; styleName?: string | null; alignment?: string | null; numbering?: unknown }
+
+const ALIGN: Record<string, string> = { center: 'center', right: 'right', end: 'right', both: 'justify', distribute: 'justify' }
+const HIGHLIGHTS = ['yellow', 'green', 'cyan', 'magenta', 'blue', 'red', 'darkBlue', 'darkCyan', 'darkGreen', 'darkMagenta', 'darkRed', 'darkYellow', 'darkGray', 'lightGray']
+
+/** Paragraph style names used only between markParagraph and the style map: "malta-<tag>-<align>". */
+const WORD_STYLE_MAP = [
+  ...['p', 'h1', 'h2', 'h3'].flatMap((tag) =>
+    ['left', 'center', 'right', 'justify'].map((al) => `p[style-name='malta-${tag}-${al}'] => ${tag}.al-${al}:fresh`)
+  ),
+  ...HIGHLIGHTS.map((c) => `highlight[color='${c}'] => span.hl-${c.toLowerCase()}`),
+]
+
+function runsOf(el: WordRun): WordRun[] {
+  if (el.type === 'run') return [el]
+  return (el.children ?? []).flatMap(runsOf)
+}
+
+/** Keeps the paragraph's alignment and, for a short line in big letters, makes it a title. */
+function markParagraph(p: WordParagraph): WordParagraph {
+  const name = (p.styleName ?? '').toLowerCase()
+  const plain = !name || name === 'normal' || name === 'no spacing' || name === 'sin espaciado'
+  if (!plain || p.numbering) return p
+  const runs = runsOf(p).filter((r) => (r.children ?? []).some((c) => c.type === 'text' && (c.value ?? '').trim()))
+  const length = runs.reduce((n, r) => n + (r.children ?? []).reduce((m, c) => m + (c.value ?? '').length, 0), 0)
+  let tag = 'p'
+  if (runs.length && length <= 200) {
+    const min = Math.min(...runs.map((r) => r.fontSize ?? 11))
+    const bold = runs.every((r) => r.isBold)
+    tag = min >= 20 ? 'h1' : min >= 15 ? 'h2' : min >= 13 && bold ? 'h3' : 'p'
+  }
+  const align = ALIGN[p.alignment ?? ''] ?? 'left'
+  if (tag === 'p' && align === 'left') return p
+  return { ...p, styleName: `malta-${tag}-${align}` }
+}
+
+/** Classes from the style map → what the editor reads (text-align, highlight colour). */
+function applyMarks(html: string): string {
+  return html
+    .replace(/ class="al-(left|center|right|justify)"/g, (_, al: string) => (al === 'left' ? '' : ` style="text-align:${al}"`))
+    .replace(/<span class="hl-([a-z]+)">/g, (_, c: string) => {
+      const color = paletteColor(c, 'background')
+      return color ? `<span style="background-color:${color}">` : '<span>'
+    })
 }
 
 /** Drops images that couldn't be uploaded (empty url). */

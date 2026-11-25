@@ -21,6 +21,7 @@ import { decodeText, parseTable } from '@/lib/db-import'
 import { importDocumentWithToast } from '@/lib/import-doc'
 import type { DocBlock } from '@/lib/blocks'
 import { paragraphAsListItem } from '@/lib/list-glyphs'
+import { cleanWordHtml, isWordHtml, rtfImages } from '@/lib/word-paste'
 import { createSubPage, fetchShare, uploadFile } from '@/lib/api'
 import { EmbedBlock } from '@/components/embed-block'
 import { ImageRowBlock } from '@/components/image-row-block'
@@ -123,11 +124,10 @@ function blockIds(blocks: DocBlock[], out = new Set<string>()): Set<string> {
   return out
 }
 
-/**
- * Normal paste, then lines that came with their bullet as a character
- * ("• texto", typical of Word, Outlook or PDFs) become real list items.
- */
-function pasteWithLists({ editor, defaultPasteHandler }: { editor: BlockNoteEditor<any, any, any>; defaultPasteHandler: () => boolean | undefined }) {
+type AnyEditor = BlockNoteEditor<any, any, any>
+
+/** Blocks that are there now: a paste is what appears after this. */
+function snapshotBefore(editor: AnyEditor): Set<string> {
   const before = blockIds(editor.document as unknown as DocBlock[])
   // The line where the paste starts gets the first pasted line.
   try {
@@ -135,7 +135,11 @@ function pasteWithLists({ editor, defaultPasteHandler }: { editor: BlockNoteEdit
   } catch {
     // No cursor (e.g. a whole block selected).
   }
-  const handled = defaultPasteHandler()
+  return before
+}
+
+/** Pasted lines that kept their bullet as a character ("• texto") become real list items. */
+function fixPastedBullets(editor: AnyEditor, before: Set<string>) {
   try {
     const fixes: [string, DocBlock][] = []
     const walk = (list: DocBlock[]) => {
@@ -156,6 +160,57 @@ function pasteWithLists({ editor, defaultPasteHandler }: { editor: BlockNoteEdit
   } catch {
     // Keep the paste as it came.
   }
+}
+
+/**
+ * Paste from Word keeping its look: lists, colours, alignment, titles, blank
+ * lines and pictures (taken from the RTF copy and uploaded like any image).
+ */
+async function pasteFromWord(editor: AnyEditor, html: string, rtf: string) {
+  const pictures = rtf ? rtfImages(rtf) : []
+  let urls: string[] = []
+  if (pictures.length) {
+    const toastId = toast.loading(pictures.length === 1 ? 'Subiendo la imagen…' : `Subiendo ${pictures.length} imágenes…`)
+    urls = await Promise.all(
+      pictures.map((pic, i) =>
+        uploadFile(new File([pic.bytes as BlobPart], `word-${i + 1}.${pic.type === 'image/png' ? 'png' : 'jpg'}`, { type: pic.type }))
+          .then((r) => r.url)
+          .catch(() => '')
+      )
+    )
+    toast.dismiss(toastId)
+  }
+  const { html: clean, missingImages } = cleanWordHtml(html, urls)
+  const before = snapshotBefore(editor)
+  editor.pasteHTML(clean)
+  fixPastedBullets(editor, before)
+  if (missingImages) toast.info('Algunas imágenes de Word no se pudieron pegar: copialas de a una o usá Importar documento')
+}
+
+/**
+ * Normal paste, then lines that came with their bullet as a character
+ * ("• texto", typical of Outlook or PDFs) become real list items. Word gets
+ * its own cleanup (pasteFromWord).
+ */
+function pasteWithLists({ event, editor, defaultPasteHandler }: { event: ClipboardEvent; editor: AnyEditor; defaultPasteHandler: () => boolean | undefined }) {
+  const html = event.clipboardData?.getData('text/html') ?? ''
+  let inCode = false
+  try {
+    inCode = editor.getTextCursorPosition().block.type === 'codeBlock'
+  } catch {
+    // No cursor.
+  }
+  if (html && !inCode && isWordHtml(html)) {
+    event.preventDefault()
+    const rtf = event.clipboardData?.getData('text/rtf') ?? ''
+    void pasteFromWord(editor, html, rtf).catch(() => {
+      editor.pasteHTML(html)
+    })
+    return true
+  }
+  const before = snapshotBefore(editor)
+  const handled = defaultPasteHandler()
+  fixPastedBullets(editor, before)
   return handled
 }
 

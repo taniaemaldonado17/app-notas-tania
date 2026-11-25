@@ -171,6 +171,10 @@ Para pasar texto a una página que ya existe: seleccionalo y **⋮⋮ → Mover 
 
 En cualquier documento (tarjeta o fila), con `/` → **Importar documento**, el botón de importar del panel de una fila o **Más opciones → Importar documento** de una tarjeta, se puede traer un archivo Markdown (`.md`), Word (`.docx`) o HTML conservando títulos, negritas, listas y tablas. Las imágenes de los Word se suben como cualquier imagen.
 
+De un Word también se traen el logo del encabezado, la alineación (centrado, justificado), los títulos escritos con letra grande y los resaltados. Los colores de letra no: para eso, copiar y pegar.
+
+**Pegar desde Word** (Ctrl+V) conserva viñetas y numeración (con niveles), títulos, alineación, negritas, colores y resaltados (llevados a los colores del editor, como en Notion), los renglones en blanco y las imágenes del texto (se suben como cualquier imagen). El logo del encabezado no viaja al copiar: pegalo aparte o importá el .docx. Código en `src/lib/word-paste.ts`.
+
 ## Estructura del proyecto
 
 ```
