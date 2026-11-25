@@ -979,3 +979,76 @@ body.row-dragging, body.row-dragging * { cursor: grabbing !important; user-selec
 .dark .card-accent:hover {
   background: color-mix(in oklab, var(--card-accent) 32%, var(--card));
 }
+
+/* ---------- Document as a sheet of paper (Descargar PDF, shared links) ---------- */
+#doc-print-root { display: none; }
+@media print {
+  body.printing-doc > :not(#doc-print-root) { display: none !important; }
+  html:has(body.printing-doc),
+  body.printing-doc { background: #fff !important; color-scheme: light !important; }
+  body.printing-doc #doc-print-root { display: block; }
+  @page { margin: 16mm 15mm; }
+}
+/* Light colours on paper, whatever the app theme (same values as :root). */
+.doc-paper,
+.doc-paper-page {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #1d1d1f;
+  --card: #ffffff;
+  --card-foreground: #1d1d1f;
+  --popover: #fbfbfd;
+  --popover-foreground: #1d1d1f;
+  --primary: #007aff;
+  --primary-foreground: #ffffff;
+  --secondary: #f2f2f7;
+  --secondary-foreground: #1d1d1f;
+  --muted: #f2f2f7;
+  --muted-foreground: #86868b;
+  --accent: #ececf1;
+  --accent-foreground: #1d1d1f;
+  --border: #e3e3e8;
+  --input: #d9d9de;
+  --opt-default-bg: #e9e9ee;   --opt-default-fg: #3a3a3c;
+  --opt-gray-bg: #e5e5ea;      --opt-gray-fg: #48484a;
+  --opt-brown-bg: #efe6dc;     --opt-brown-fg: #6f5537;
+  --opt-orange-bg: #ffead1;    --opt-orange-fg: #9a5200;
+  --opt-yellow-bg: #fff3c4;    --opt-yellow-fg: #7d6200;
+  --opt-green-bg: #daf5e1;     --opt-green-fg: #1b7a35;
+  --opt-blue-bg: #d9eaff;      --opt-blue-fg: #0058b8;
+  --opt-purple-bg: #f1e0fa;    --opt-purple-fg: #7a2fa3;
+  --opt-pink-bg: #ffe0e7;      --opt-pink-fg: #b0153a;
+  --opt-red-bg: #ffe1df;       --opt-red-fg: #b4231b;
+  background: #ffffff;
+}
+.doc-paper {
+  color: #1d1d1f;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.doc-paper-cover {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+.doc-paper-header { margin-bottom: 12px; }
+.doc-paper-icon { font-size: 44px; line-height: 1.1; margin-bottom: 6px; }
+.doc-paper-title { font-size: 2rem; font-weight: 700; line-height: 1.2; margin: 0; word-break: break-word; }
+.doc-paper-empty { color: #86868b; font-size: 0.9rem; }
+.doc-paper .rich-editor .bn-editor { padding-inline: 0; }
+.doc-paper .bn-editor { outline: none; }
+/* Nothing looks selected on paper. */
+.doc-paper .bn-block-content.ProseMirror-selectednode > ::after,
+.doc-paper .ProseMirror-selectednode > .bn-block-content > ::after,
+.doc-paper .bn-block-content .ProseMirror-selectednode::after { content: none; }
+/* Sub-page links on paper: just the name. */
+.doc-paper .subpage-link { padding-inline: 0; }
+@media print {
+  .doc-paper .bn-block-content { break-inside: avoid; }
+  .doc-paper img { break-inside: avoid; max-width: 100%; }
+  .doc-paper [data-content-type="heading"] { break-after: avoid; }
+  .doc-paper .subpage-link:hover { background: none; }
+}

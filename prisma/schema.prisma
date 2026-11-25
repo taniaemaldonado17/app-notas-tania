@@ -69,6 +69,7 @@ model Page {
   versions    PageVersion[]
   presupuestos Presupuesto[]
   subPages    SubPage[]
+  publicLinks PublicLink[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -597,4 +598,21 @@ model SubPage {
   @@index([parentRowId])
   @@index([parentCardId])
   @@index([parentSubPageId])
+}
+
+// Public, read-only link to one document (a database row, a board card or a
+// sub-page), for people without an account: /compartido/<token>. Sub-pages
+// inside the document can be opened too. Deleting the link revokes it.
+model PublicLink {
+  token       String   @id
+  pageId      String
+  page        Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  // 'row' | 'card' | 'subpage'
+  kind        String
+  docId       String
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([docId])
+  @@index([pageId])
 }

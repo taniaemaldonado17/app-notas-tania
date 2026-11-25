@@ -13,6 +13,7 @@ import { parseDoc, type DocBlock } from '@/lib/blocks'
 import { importDocumentWithToast } from '@/lib/import-doc'
 import { useSubPages, type SubPageCrumb } from '@/lib/subpage-store'
 import type { SubPageInfo } from '@/lib/subpages'
+import { DocShareMenu } from '@/components/doc-share-menu'
 
 const RichEditor = dynamic(() => import('@/components/rich-editor'), {
   ssr: false,
@@ -98,6 +99,16 @@ export function SubPageView({
           </nav>
         </div>
         <div className="flex items-center gap-0.5 pr-16">
+          {sub && (
+            <DocShareMenu
+              docRef={{ kind: 'subpage', id: sub.id }}
+              getDoc={() => ({
+                title,
+                icon: sub.icon,
+                blocks: (editorRef.current?.document as DocBlock[] | undefined) ?? parseDoc(sub.content),
+              })}
+            />
+          )}
           <Button
             variant="ghost"
             size="sm"

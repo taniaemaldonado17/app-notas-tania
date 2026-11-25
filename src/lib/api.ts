@@ -758,3 +758,21 @@ export function urlPdfPresupuesto(id: string) {
 export function urlExportarPresupuesto(id: string, formato: 'xlsx' | 'json') {
   return `${API_BASE}/presupuestos/${id}/exportar?formato=${formato}`
 }
+
+/* ------------------------- Public read-only links ------------------------- */
+
+export type PublicLinkInfo = { token: string; url: string }
+
+export async function fetchPublicLink(ref: import('@/lib/subpages').DocRef): Promise<PublicLinkInfo | null> {
+  const q = new URLSearchParams({ kind: ref.kind, id: ref.id })
+  return (await jsonFetch<{ link: PublicLinkInfo | null }>(`${API_BASE}/public-links?${q}`)).link
+}
+
+export async function createPublicLink(ref: import('@/lib/subpages').DocRef): Promise<PublicLinkInfo> {
+  return (await jsonFetch<{ link: PublicLinkInfo }>(`${API_BASE}/public-links`, { method: 'POST', body: JSON.stringify(ref) })).link
+}
+
+export async function deletePublicLink(ref: import('@/lib/subpages').DocRef): Promise<void> {
+  const q = new URLSearchParams({ kind: ref.kind, id: ref.id })
+  await jsonFetch(`${API_BASE}/public-links?${q}`, { method: 'DELETE' })
+}

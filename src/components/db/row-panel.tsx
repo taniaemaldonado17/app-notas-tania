@@ -20,6 +20,7 @@ import { importDocumentWithToast } from '@/lib/import-doc'
 import { useOpenSubPages, useSubPages } from '@/lib/subpage-store'
 import { SubPageRootContext } from '@/components/subpage-block'
 import { SubPageView } from '@/components/subpage-view'
+import { DocShareMenu } from '@/components/doc-share-menu'
 import type { CardComment } from '@/lib/types'
 import type { DatabaseDef, DbRow } from '@/lib/db-types'
 
@@ -117,6 +118,14 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
           </span>
         </div>
         <div className="flex items-center gap-0.5 pr-16">
+          <DocShareMenu
+            docRef={{ kind: 'row', id: row.id }}
+            getDoc={() => ({
+              title,
+              icon: row.icon,
+              blocks: (editorRef.current?.document as DocBlock[] | undefined) ?? detail?.blocks ?? [],
+            })}
+          />
           <Button
             variant="ghost"
             size="sm"
