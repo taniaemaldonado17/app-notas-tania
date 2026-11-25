@@ -531,6 +531,21 @@ export async function resetCalendarFeed(): Promise<{ path: string }> {
   return jsonFetch(`${API_BASE}/calendar`, { method: 'POST' })
 }
 
+/* ---------------------------- Claude connector ---------------------------- */
+
+export async function getClaudeConnector(): Promise<{ connected: boolean; createdAt: string | null }> {
+  return jsonFetch(`${API_BASE}/claude-connector`)
+}
+
+/** New connector link (shown only once); the previous one stops working. */
+export async function createClaudeConnector(): Promise<{ url: string; createdAt: string }> {
+  return jsonFetch(`${API_BASE}/claude-connector`, { method: 'POST' })
+}
+
+export async function deleteClaudeConnector(): Promise<void> {
+  await jsonFetch(`${API_BASE}/claude-connector`, { method: 'DELETE' })
+}
+
 /* ---------------------------- Version history ---------------------------- */
 
 export type VersionInfo = { id: string; createdAt: string; editedBy: string | null }

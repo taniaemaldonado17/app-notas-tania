@@ -36,8 +36,14 @@ model User {
   // demand --accept-data-loss, which the Vercel build doesn't pass. Tokens
   // are 192 random bits, so collisions don't happen in practice.)
   calendarToken String?
+  // Claude connector (MCP, /api/mcp/<secret>): SHA-256 of the secret in the
+  // link the user pasted in Claude. Only the hash is kept, so the link is
+  // shown once; generating a new one (or disconnecting) revokes the old one.
+  mcpTokenHash      String?
+  mcpTokenCreatedAt DateTime?
 
   @@index([calendarToken])
+  @@index([mcpTokenHash])
 }
 
 model Page {

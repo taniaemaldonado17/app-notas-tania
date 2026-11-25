@@ -1,0 +1,615 @@
+/**
+ * Tools of the Claude connector: what Claude can read and write in Malta,
+ * always as the user who generated the connector link (same access as in the
+ * app: their own pages plus pages shared with them).
+ *
+ * Documents are the page content of a database row or of a board card;
+ * Claude reads and writes them as Markdown (see md-blocks.ts).
+ */
+import type { Prisma } from '@prisma/client'
+import { db } from '@/lib/db'
+import { accessiblePageWhere } from '@/lib/auth-helpers'
+import { databaseInclude, serializeDatabase, sanitizeValues } from '@/lib/db-server'
+import { resolveValue } from '@/lib/db-resolve'
+import { findOption, formatNumber, type DatabaseDef, type DbRow, type PropertyDef, type RowValue } from '@/lib/db-types'
+import { saveVersionBeforeChange } from '@/lib/versions'
+import { parseDoc, serializeDoc, type DocBlock } from '@/lib/blocks'
+import { blocksToMarkdown, markdownToBlocks } from '@/lib/md-blocks'
+import { text, ToolError, type ToolDef, type ToolResult } from '@/lib/mcp/protocol'
+
+const MAX_MARKDOWN = 400_000
+const MAX_STORED = 2_000_000
+
+export const INSTRUCTIONS = `Malta es la app de notas y proyectos de la usuaria (estilo Notion), en español.
+- Las páginas son de dos tipos: "bases de datos" (tablas con filas, por ejemplo ARQUITECTURA > Proyectos) o "tablero" (columnas con tarjetas).
+- Cada fila o tarjeta tiene su propio documento, que se lee y se escribe en Markdown.
+- Para guardar un documento nuevo: listar_paginas → elegí la base de datos o la columna adecuada → crear_documento.
+- Para cambiar uno existente: buscar o listar_entradas → leer_documento → actualizar_documento.
+- Antes de reemplazar el contenido de un documento existente, confirmá con la usuaria si no lo pidió explícitamente.`
+
+/* --------------------------------- Schemas -------------------------------- */
+
+const idProp = (description: string) => ({ type: 'string', description })
+
+export const TOOLS: ToolDef[] = [
+  {
+    name: 'listar_paginas',
+    title: 'Listar páginas',
+    description:
+      'Lista las páginas de Malta a las que hay acceso, con sus bases de datos (páginas de tipo "bases de datos") o sus columnas (páginas de tipo "tablero"), y cuántas entradas tiene cada una. Usalo primero para saber dónde leer o guardar documentos.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: 'listar_entradas',
+    title: 'Listar entradas',
+    description:
+      'Lista las filas de una base de datos (con sus propiedades: etapa, estado, fechas…) o las tarjetas de una columna de tablero. Pasá base_id o columna_id (salen de listar_paginas).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        base_id: idProp('Id de la base de datos'),
+        columna_id: idProp('Id de la columna de un tablero'),
+        texto: { type: 'string', description: 'Filtra por texto en el título (opcional)' },
+        limite: { type: 'integer', minimum: 1, maximum: 200, description: 'Máximo de entradas (por defecto 50)' },
+      },
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: 'buscar',
+    title: 'Buscar',
+    description: 'Busca filas y tarjetas por texto en el título o en el contenido, en todas las páginas accesibles.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        texto: { type: 'string', description: 'Texto a buscar' },
+        limite: { type: 'integer', minimum: 1, maximum: 50, description: 'Máximo de resultados (por defecto 20)' },
+      },
+      required: ['texto'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: 'leer_documento',
+    title: 'Leer documento',
+    description: 'Lee una fila o tarjeta: título, dónde está, sus propiedades y el contenido de su documento en Markdown.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: idProp('Id de la fila o tarjeta') },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: 'crear_documento',
+    title: 'Crear documento',
+    description:
+      'Crea una fila nueva en una base de datos (base_id) o una tarjeta nueva en una columna (columna_id), con título, contenido en Markdown (títulos, negritas, listas, tablas, citas, código) y, para filas, valores de propiedades por nombre.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        base_id: idProp('Id de la base de datos donde crear la fila'),
+        columna_id: idProp('Id de la columna donde crear la tarjeta'),
+        titulo: { type: 'string', description: 'Título de la fila o tarjeta' },
+        contenido_markdown: { type: 'string', description: 'Contenido del documento en Markdown' },
+        icono: { type: 'string', description: 'Un emoji (opcional)' },
+        propiedades: {
+          type: 'object',
+          description:
+            'Solo para filas: valores por nombre de propiedad, por ejemplo {"Etapa": "Anteproyecto", "Entrega": "2026-12-15"}. Selecciones por nombre de opción; fechas AAAA-MM-DD; null borra el valor.',
+          additionalProperties: true,
+        },
+      },
+      required: ['titulo'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+  },
+  {
+    name: 'actualizar_documento',
+    title: 'Actualizar documento',
+    description:
+      'Cambia una fila o tarjeta existente: título, ícono, propiedades y/o contenido. Con modo "reemplazar" (por defecto) el Markdown reemplaza todo el documento; con "agregar_al_final" se suma después de lo que ya hay. Queda una versión anterior en el historial de la página.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: idProp('Id de la fila o tarjeta'),
+        titulo: { type: 'string' },
+        icono: { type: ['string', 'null'], description: 'Emoji, o null para quitarlo' },
+        contenido_markdown: { type: 'string' },
+        modo: { type: 'string', enum: ['reemplazar', 'agregar_al_final'] },
+        propiedades: { type: 'object', description: 'Solo para filas; igual que en crear_documento', additionalProperties: true },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+  },
+]
+
+/* --------------------------------- Helpers -------------------------------- */
+
+const str = (v: unknown) => (typeof v === 'string' ? v : undefined)
+const json = (v: unknown) => text(JSON.stringify(v, null, 2))
+const limit = (v: unknown, def: number, max: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(1, Math.trunc(v))) : def)
+
+function cleanIcon(v: unknown): string | null | undefined {
+  if (v === null) return null
+  if (typeof v !== 'string') return undefined
+  return v.trim().slice(0, 16) || null
+}
+
+/** Gives an id to every block (and nested block) that lacks one. */
+function ensureIds(blocks: DocBlock[]): DocBlock[] {
+  return blocks.map((b) => ({
+    ...b,
+    id: typeof b.id === 'string' && b.id ? b.id : globalThis.crypto.randomUUID(),
+    ...(Array.isArray(b.children) ? { children: ensureIds(b.children) } : {}),
+  }))
+}
+
+function readMarkdown(v: unknown): string | undefined {
+  if (v === undefined) return undefined
+  if (typeof v !== 'string') throw new ToolError('contenido_markdown tiene que ser texto')
+  if (v.length > MAX_MARKDOWN) throw new ToolError(`El contenido es demasiado largo (máximo ${MAX_MARKDOWN.toLocaleString('es-AR')} caracteres)`)
+  return v
+}
+
+/** New stored content: the Markdown alone, or added after the current content. */
+function buildContent(current: string | null, markdown: string, append: boolean): string | null {
+  const added = markdownToBlocks(markdown)
+  const blocks = ensureIds(append ? [...parseDoc(current), ...added] : added)
+  const stored = serializeDoc(blocks)
+  if (stored && stored.length > MAX_STORED) throw new ToolError('El documento quedaría demasiado grande')
+  return stored
+}
+
+/* ------------------------------ Row properties ----------------------------- */
+
+const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase()
+
+function optionId(prop: PropertyDef, name: unknown): string | null {
+  if (typeof name !== 'string') return null
+  const n = norm(name)
+  // Options may carry an emoji ("🏗️ Obra"): also match the name without it.
+  const plain = (s: string) => norm(s.replace(/[^\p{L}\p{N}\s]/gu, ''))
+  const opt = prop.options?.find((o) => norm(o.name) === n) ?? prop.options?.find((o) => plain(o.name) === plain(name))
+  return opt?.id ?? null
+}
+
+/** Converts {"Nombre de propiedad": valor} into stored row values. */
+function valuesFromInput(properties: PropertyDef[], input: unknown): { values: Record<string, RowValue>; warnings: string[] } {
+  const values: Record<string, RowValue> = {}
+  const warnings: string[] = []
+  if (input === undefined || input === null) return { values, warnings }
+  if (typeof input !== 'object' || Array.isArray(input)) throw new ToolError('propiedades tiene que ser un objeto {"Nombre": valor}')
+
+  for (const [key, raw] of Object.entries(input as Record<string, unknown>)) {
+    const prop = properties.find((p) => p.id === key) ?? properties.find((p) => norm(p.name) === norm(key))
+    if (!prop) {
+      warnings.push(`No existe la propiedad "${key}". Propiedades: ${properties.map((p) => p.name).join(', ')}`)
+      continue
+    }
+    if (prop.type === 'title') {
+      warnings.push(`"${prop.name}" es el título: usá el campo titulo`)
+      continue
+    }
+    if (raw === null) {
+      values[prop.id] = null
+      continue
+    }
+    switch (prop.type) {
+      case 'text':
+      case 'url':
+      case 'email':
+      case 'phone':
+        values[prop.id] = String(raw).slice(0, 5000)
+        break
+      case 'number': {
+        // "1.500,50" (Argentina) or "1500.5"
+        const s = String(raw).trim().replace(/[$\s]/g, '')
+        const n = typeof raw === 'number' ? raw : Number(s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s)
+        if (Number.isFinite(n)) values[prop.id] = n
+        else warnings.push(`"${prop.name}" espera un número`)
+        break
+      }
+      case 'checkbox':
+        values[prop.id] = raw === true || ['si', 'sí', 'true', '1', 'x'].includes(norm(String(raw)))
+        break
+      case 'date': {
+        const s = String(raw).trim()
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) values[prop.id] = s
+        else warnings.push(`"${prop.name}" espera una fecha AAAA-MM-DD`)
+        break
+      }
+      case 'select':
+      case 'status': {
+        const id = optionId(prop, raw)
+        if (id) values[prop.id] = id
+        else warnings.push(`"${String(raw)}" no es una opción de "${prop.name}". Opciones: ${(prop.options ?? []).map((o) => o.name).join(', ')}`)
+        break
+      }
+      case 'multi_select': {
+        const names = Array.isArray(raw) ? raw : String(raw).split(',')
+        const ids: string[] = []
+        for (const name of names) {
+          const id = optionId(prop, name)
+          if (id) ids.push(id)
+          else warnings.push(`"${String(name).trim()}" no es una opción de "${prop.name}"`)
+        }
+        values[prop.id] = ids
+        break
+      }
+      default:
+        warnings.push(`"${prop.name}" (${prop.type}) no se puede cambiar desde Claude; hacelo en Malta`)
+    }
+  }
+  return { values, warnings }
+}
+
+/** Property values as a person reads them (option names, related titles…). */
+function readableValues(all: DatabaseDef[], dbDef: DatabaseDef, row: DbRow, people: Map<string, string>) {
+  const out: Record<string, unknown> = {}
+  const titleOf = (id: string) => {
+    for (const d of all) {
+      const r = d.rows.find((x) => x.id === id)
+      if (r) return r.title || 'Sin título'
+    }
+    return id
+  }
+  for (const prop of dbDef.properties) {
+    if (prop.type === 'title' || prop.type === 'created_time' || prop.type === 'updated_time') continue
+    const v = resolveValue({ databases: all }, dbDef, row, prop)
+    if (v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length)) continue
+    switch (prop.type) {
+      case 'select':
+      case 'status':
+        out[prop.name] = findOption(prop, v)?.name ?? null
+        break
+      case 'multi_select':
+        out[prop.name] = Array.isArray(v) ? v.map((id) => findOption(prop, id)?.name).filter(Boolean) : null
+        break
+      case 'relation':
+      case 'backlink':
+        out[prop.name] = Array.isArray(v) ? v.map((id) => titleOf(String(id))) : null
+        break
+      case 'person':
+        out[prop.name] = Array.isArray(v) ? v.map((id) => people.get(String(id)) ?? String(id)) : null
+        break
+      case 'number':
+      case 'formula':
+        out[prop.name] = typeof v === 'number' ? formatNumber(v, prop.numberFormat) : v
+        break
+      default:
+        out[prop.name] = v
+    }
+    if (out[prop.name] === null) delete out[prop.name]
+  }
+  return out
+}
+
+async function pageDatabases(pageId: string): Promise<DatabaseDef[]> {
+  const list = await db.database.findMany({
+    where: { pageId },
+    orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+    include: databaseInclude,
+  })
+  return list.map(serializeDatabase)
+}
+
+async function peopleNames(dbs: DatabaseDef[]): Promise<Map<string, string>> {
+  const ids = new Set<string>()
+  for (const d of dbs) {
+    const personProps = d.properties.filter((p) => p.type === 'person').map((p) => p.id)
+    for (const r of d.rows) for (const pid of personProps) {
+      const v = r.values[pid]
+      if (Array.isArray(v)) v.forEach((x) => ids.add(x))
+    }
+  }
+  if (!ids.size) return new Map()
+  const users = await db.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true, name: true, email: true } })
+  return new Map(users.map((u) => [u.id, u.name || u.email]))
+}
+
+/* ------------------------------- Lookups ----------------------------------- */
+
+async function findRow(userId: string, id: string) {
+  return db.dbRow.findFirst({
+    where: { id, database: { page: accessiblePageWhere(userId) } },
+    select: {
+      id: true,
+      title: true,
+      icon: true,
+      content: true,
+      databaseId: true,
+      database: { select: { id: true, title: true, pageId: true, page: { select: { title: true } } } },
+    },
+  })
+}
+
+async function findCard(userId: string, id: string) {
+  return db.card.findFirst({
+    where: { id, column: { page: accessiblePageWhere(userId) } },
+    select: {
+      id: true,
+      title: true,
+      icon: true,
+      description: true,
+      column: { select: { id: true, title: true, pageId: true, page: { select: { title: true } } } },
+    },
+  })
+}
+
+/* --------------------------------- Tools ----------------------------------- */
+
+export function makeRunner(userId: string, origin: string) {
+  const rowLink = (id: string) => `${origin}/?row=${encodeURIComponent(id)}`
+  const cardLink = (id: string) => `${origin}/?card=${encodeURIComponent(id)}`
+
+  async function listarPaginas(): Promise<ToolResult> {
+    const pages = await db.page.findMany({
+      where: accessiblePageWhere(userId),
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        title: true,
+        icon: true,
+        kind: true,
+        userId: true,
+        databases: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], select: { id: true, title: true, icon: true, _count: { select: { rows: true } } } },
+        columns: { orderBy: { position: 'asc' }, select: { id: true, title: true, _count: { select: { cards: true } } } },
+      },
+    })
+    return json({
+      paginas: pages.map((p) => ({
+        id: p.id,
+        titulo: p.title,
+        icono: p.icon,
+        tipo: p.kind === 'databases' ? 'bases de datos' : 'tablero',
+        compartida_conmigo: p.userId !== userId,
+        ...(p.kind === 'databases'
+          ? { bases: p.databases.map((d) => ({ id: d.id, titulo: d.title, icono: d.icon, filas: d._count.rows })) }
+          : { columnas: p.columns.map((c) => ({ id: c.id, titulo: c.title, tarjetas: c._count.cards })) }),
+      })),
+    })
+  }
+
+  async function listarEntradas(args: Record<string, unknown>): Promise<ToolResult> {
+    const baseId = str(args.base_id)
+    const columnaId = str(args.columna_id)
+    const filtro = str(args.texto)?.trim()
+    const max = limit(args.limite, 50, 200)
+    if (!!baseId === !!columnaId) throw new ToolError('Pasá base_id o columna_id (uno de los dos)')
+
+    if (baseId) {
+      const found = await db.database.findFirst({ where: { id: baseId, page: accessiblePageWhere(userId) }, select: { pageId: true } })
+      if (!found) throw new ToolError('No encontré esa base de datos (o no tenés acceso)')
+      const all = await pageDatabases(found.pageId)
+      const dbDef = all.find((d) => d.id === baseId)!
+      const people = await peopleNames(all)
+      let rows = dbDef.rows
+      if (filtro) rows = rows.filter((r) => norm(r.title).includes(norm(filtro)))
+      return json({
+        base: dbDef.title,
+        total: rows.length,
+        filas: rows.slice(0, max).map((r) => ({
+          id: r.id,
+          titulo: r.title || 'Sin título',
+          icono: r.icon,
+          actualizado: r.updatedAt,
+          propiedades: readableValues(all, dbDef, r, people),
+        })),
+      })
+    }
+
+    const column = await db.column.findFirst({ where: { id: columnaId, page: accessiblePageWhere(userId) }, select: { title: true } })
+    if (!column) throw new ToolError('No encontré esa columna (o no tenés acceso)')
+    const cards = await db.card.findMany({
+      where: { columnId: columnaId, ...(filtro ? { title: { contains: filtro, mode: 'insensitive' } } : {}) },
+      orderBy: { position: 'asc' },
+      take: max,
+      select: { id: true, title: true, icon: true, updatedAt: true, description: true },
+    })
+    return json({
+      columna: column.title,
+      tarjetas: cards.map((c) => ({ id: c.id, titulo: c.title, icono: c.icon, actualizado: c.updatedAt.toISOString(), tiene_contenido: !!c.description })),
+    })
+  }
+
+  async function buscar(args: Record<string, unknown>): Promise<ToolResult> {
+    const q = str(args.texto)?.trim()
+    if (!q) throw new ToolError('Falta el texto a buscar')
+    const max = limit(args.limite, 20, 50)
+    const match = { contains: q, mode: 'insensitive' as const }
+    const [rows, cards] = await Promise.all([
+      db.dbRow.findMany({
+        where: { database: { page: accessiblePageWhere(userId) }, OR: [{ title: match }, { content: match }] },
+        orderBy: { updatedAt: 'desc' },
+        take: max,
+        select: { id: true, title: true, icon: true, database: { select: { title: true, page: { select: { title: true } } } } },
+      }),
+      db.card.findMany({
+        where: { column: { page: accessiblePageWhere(userId) }, OR: [{ title: match }, { description: match }] },
+        orderBy: { updatedAt: 'desc' },
+        take: max,
+        select: { id: true, title: true, icon: true, column: { select: { title: true, page: { select: { title: true } } } } },
+      }),
+    ])
+    return json({
+      resultados: [
+        ...rows.map((r) => ({ id: r.id, tipo: 'fila', titulo: r.title || 'Sin título', icono: r.icon, base: r.database.title, pagina: r.database.page.title })),
+        ...cards.map((c) => ({ id: c.id, tipo: 'tarjeta', titulo: c.title, icono: c.icon, columna: c.column.title, pagina: c.column.page.title })),
+      ].slice(0, max),
+    })
+  }
+
+  async function leerDocumento(args: Record<string, unknown>): Promise<ToolResult> {
+    const id = str(args.id)
+    if (!id) throw new ToolError('Falta el id')
+    const row = await findRow(userId, id)
+    if (row) {
+      const all = await pageDatabases(row.database.pageId)
+      const dbDef = all.find((d) => d.id === row.databaseId)
+      const r = dbDef?.rows.find((x) => x.id === row.id)
+      const props = dbDef && r ? readableValues(all, dbDef, r, await peopleNames(all)) : {}
+      const lines = [
+        `# ${row.icon ? `${row.icon} ` : ''}${row.title || 'Sin título'}`,
+        '',
+        `Fila de la base "${row.database.title}" (página ${row.database.page.title}) · id ${row.id}`,
+        `Enlace: ${rowLink(row.id)}`,
+      ]
+      const entries = Object.entries(props)
+      if (entries.length) {
+        lines.push('', 'Propiedades:', ...entries.map(([k, v]) => `- ${k}: ${Array.isArray(v) ? v.join(', ') : String(v)}`))
+      }
+      const body = blocksToMarkdown(parseDoc(row.content))
+      lines.push('', '---', '', body || '(El documento está vacío)')
+      return text(lines.join('\n'))
+    }
+    const card = await findCard(userId, id)
+    if (card) {
+      const body = blocksToMarkdown(parseDoc(card.description))
+      return text(
+        [
+          `# ${card.icon ? `${card.icon} ` : ''}${card.title}`,
+          '',
+          `Tarjeta de la columna "${card.column.title}" (página ${card.column.page.title}) · id ${card.id}`,
+          `Enlace: ${cardLink(card.id)}`,
+          '',
+          '---',
+          '',
+          body || '(El documento está vacío)',
+        ].join('\n')
+      )
+    }
+    throw new ToolError('No encontré una fila ni una tarjeta con ese id (o no tenés acceso)')
+  }
+
+  async function crearDocumento(args: Record<string, unknown>): Promise<ToolResult> {
+    const baseId = str(args.base_id)
+    const columnaId = str(args.columna_id)
+    if (!!baseId === !!columnaId) throw new ToolError('Pasá base_id (para una fila) o columna_id (para una tarjeta), uno de los dos')
+    const titulo = str(args.titulo)?.trim().slice(0, 2000)
+    if (!titulo) throw new ToolError('Falta el título')
+    const markdown = readMarkdown(args.contenido_markdown)
+    const content = markdown ? buildContent(null, markdown, false) : null
+    const icon = cleanIcon(args.icono) ?? null
+
+    if (baseId) {
+      const dbRec = await db.database.findFirst({ where: { id: baseId, page: accessiblePageWhere(userId) }, select: { id: true, pageId: true, title: true, properties: true } })
+      if (!dbRec) throw new ToolError('No encontré esa base de datos (o no tenés acceso)')
+      const properties = (Array.isArray(dbRec.properties) ? dbRec.properties : []) as unknown as PropertyDef[]
+      const { values, warnings } = valuesFromInput(properties, args.propiedades)
+      const clean = sanitizeValues(Object.fromEntries(Object.entries(values).filter(([, v]) => v !== null))) ?? {}
+      await saveVersionBeforeChange(dbRec.pageId, userId)
+      const last = await db.dbRow.aggregate({ where: { databaseId: baseId }, _max: { position: true } })
+      const row = await db.dbRow.create({
+        data: {
+          databaseId: baseId,
+          title: titulo,
+          icon,
+          values: clean as Prisma.InputJsonValue,
+          content,
+          position: (last._max.position ?? -1) + 1,
+          createdById: userId,
+        },
+        select: { id: true },
+      })
+      return json({ creado: 'fila', id: row.id, base: dbRec.title, enlace: rowLink(row.id), avisos: warnings.length ? warnings : undefined })
+    }
+
+    const column = await db.column.findFirst({ where: { id: columnaId, page: accessiblePageWhere(userId) }, select: { id: true, pageId: true, title: true } })
+    if (!column) throw new ToolError('No encontré esa columna (o no tenés acceso)')
+    if (args.propiedades !== undefined) throw new ToolError('Las tarjetas de tablero no tienen propiedades; sacá "propiedades" o usá una base de datos')
+    await saveVersionBeforeChange(column.pageId, userId)
+    const last = await db.card.aggregate({ where: { columnId: column.id }, _max: { position: true } })
+    const card = await db.card.create({
+      data: { columnId: column.id, title: titulo, icon, description: content, position: (last._max.position ?? -1) + 1 },
+      select: { id: true },
+    })
+    return json({ creado: 'tarjeta', id: card.id, columna: column.title, enlace: cardLink(card.id) })
+  }
+
+  async function actualizarDocumento(args: Record<string, unknown>): Promise<ToolResult> {
+    const id = str(args.id)
+    if (!id) throw new ToolError('Falta el id')
+    const markdown = readMarkdown(args.contenido_markdown)
+    const modo = args.modo === undefined ? 'reemplazar' : args.modo
+    if (modo !== 'reemplazar' && modo !== 'agregar_al_final') throw new ToolError('modo tiene que ser "reemplazar" o "agregar_al_final"')
+    const append = modo === 'agregar_al_final'
+    const titulo = str(args.titulo)?.trim().slice(0, 2000)
+    const icon = cleanIcon(args.icono)
+    if (markdown === undefined && !titulo && icon === undefined && args.propiedades === undefined) {
+      throw new ToolError('No hay nada para cambiar: pasá titulo, icono, propiedades o contenido_markdown')
+    }
+
+    const row = await findRow(userId, id)
+    if (row) {
+      const data: Prisma.DbRowUpdateInput = {}
+      if (titulo) data.title = titulo
+      if (icon !== undefined) data.icon = icon
+      if (markdown !== undefined) data.content = buildContent(row.content, markdown, append)
+      let warnings: string[] = []
+      let patch: Record<string, RowValue> | null = null
+      if (args.propiedades !== undefined) {
+        const dbRec = await db.database.findUnique({ where: { id: row.databaseId }, select: { properties: true } })
+        const properties = (Array.isArray(dbRec?.properties) ? dbRec!.properties : []) as unknown as PropertyDef[]
+        const res = valuesFromInput(properties, args.propiedades)
+        warnings = res.warnings
+        patch = res.values
+      }
+      await saveVersionBeforeChange(row.database.pageId, userId)
+      await db.$transaction(async (tx) => {
+        if (patch && Object.keys(patch).length) {
+          const current = await tx.dbRow.findUnique({ where: { id }, select: { values: true } })
+          const merged: Record<string, unknown> = {
+            ...(current?.values && typeof current.values === 'object' && !Array.isArray(current.values) ? (current.values as Record<string, unknown>) : {}),
+          }
+          for (const [k, v] of Object.entries(patch)) {
+            if (v === null) delete merged[k]
+            else merged[k] = v
+          }
+          data.values = (sanitizeValues(merged) ?? {}) as Prisma.InputJsonValue
+        }
+        await tx.dbRow.update({ where: { id }, data })
+      })
+      return json({ actualizado: 'fila', id, enlace: rowLink(id), avisos: warnings.length ? warnings : undefined })
+    }
+
+    const card = await findCard(userId, id)
+    if (card) {
+      if (args.propiedades !== undefined) throw new ToolError('Las tarjetas de tablero no tienen propiedades')
+      const data: Prisma.CardUpdateInput = {}
+      if (titulo) data.title = titulo
+      if (icon !== undefined) data.icon = icon
+      if (markdown !== undefined) data.description = buildContent(card.description, markdown, append)
+      await saveVersionBeforeChange(card.column.pageId, userId)
+      await db.card.update({ where: { id }, data })
+      return json({ actualizado: 'tarjeta', id, enlace: cardLink(id) })
+    }
+    throw new ToolError('No encontré una fila ni una tarjeta con ese id (o no tenés acceso)')
+  }
+
+  return async function run(name: string, args: Record<string, unknown>): Promise<ToolResult> {
+    switch (name) {
+      case 'listar_paginas':
+        return listarPaginas()
+      case 'listar_entradas':
+        return listarEntradas(args)
+      case 'buscar':
+        return buscar(args)
+      case 'leer_documento':
+        return leerDocumento(args)
+      case 'crear_documento':
+        return crearDocumento(args)
+      case 'actualizar_documento':
+        return actualizarDocumento(args)
+      default:
+        throw new ToolError(`Herramienta desconocida: ${name}`)
+    }
+  }
+}

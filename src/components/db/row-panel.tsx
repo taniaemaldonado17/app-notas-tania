@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
-import { ArrowLeft, Copy, Link2, Loader2, Trash2 } from 'lucide-react'
+import type { BlockNoteEditor } from '@blocknote/core'
+import { ArrowLeft, Copy, FileUp, Link2, Loader2, Trash2 } from 'lucide-react'
 import { ResizableSidePanel } from '@/components/resizable-side-panel'
 import { Button } from '@/components/ui/button'
 import { CommentsSection } from '@/components/comments-section'
@@ -15,6 +16,7 @@ import { AddPropertyButton, PropertyIcon, PropertyMenu } from '@/components/db/p
 import { admitePresupuesto, PresupuestoBlock } from '@/components/presupuesto/presupuesto-block'
 import * as api from '@/lib/api'
 import { parseDoc, serializeDoc, type DocBlock } from '@/lib/blocks'
+import { importDocumentWithToast } from '@/lib/import-doc'
 import type { CardComment } from '@/lib/types'
 import type { DatabaseDef, DbRow } from '@/lib/db-types'
 
@@ -61,6 +63,7 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
   const { ws, people } = useDb()
   const [detail, setDetail] = useState<{ content: string | null; blocks: DocBlock[]; comments: CardComment[] } | null>(null)
   const [title, setTitle] = useState(row.title)
+  const editorRef = useRef<BlockNoteEditor | null>(null)
   useEffect(() => {
     let cancelled = false
     api
@@ -113,6 +116,16 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
             }}
           >
             <Link2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="Importar documento (.md, Word)"
+            aria-label="Importar documento"
+            onClick={() => void importDocumentWithToast(editorRef.current, 'end')}
+          >
+            <FileUp className="h-3.5 w-3.5" />
           </Button>
           <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Duplicar" aria-label="Duplicar" onClick={() => ws.duplicateRow(row.id)}>
             <Copy className="h-3.5 w-3.5" />
@@ -219,7 +232,15 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
 
         <div className="-mx-5 border-t border-border pt-3">
           {detail && (
-            <RowContentEditor rowId={row.id} initial={detail.content} blocks={detail.blocks} people={people} />
+            <RowContentEditor
+              rowId={row.id}
+              initial={detail.content}
+              blocks={detail.blocks}
+              people={people}
+              onEditor={(e) => {
+                editorRef.current = e
+              }}
+            />
           )}
         </div>
       </div>
@@ -233,16 +254,28 @@ function RowContentEditor({
   initial,
   blocks,
   people,
+  onEditor,
 }: {
   rowId: string
   initial: string | null
   blocks: DocBlock[]
   people: Person[]
+  onEditor?: (editor: BlockNoteEditor | null) => void
 }) {
   const sync = useDocSync({
     initial,
     fetchLatest: async () => (await api.fetchRowDetail(rowId)).content,
     save: (content, baseHash) => api.saveDocContent('row', rowId, content, baseHash),
   })
-  return <RichEditor initialBlocks={blocks} people={people} onChange={sync.onChange} onReady={sync.onReady} />
+  return (
+    <RichEditor
+      initialBlocks={blocks}
+      people={people}
+      onChange={sync.onChange}
+      onReady={(editor) => {
+        sync.onReady(editor)
+        onEditor?.(editor)
+      }}
+    />
+  )
 }

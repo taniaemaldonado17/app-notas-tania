@@ -15,9 +15,10 @@ import {
 } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
 import '@blocknote/mantine/style.css'
-import { CalendarRange, Code2, GalleryHorizontal, Lightbulb, Sheet } from 'lucide-react'
+import { CalendarRange, Code2, FileUp, GalleryHorizontal, Lightbulb, Sheet } from 'lucide-react'
 import { toast } from 'sonner'
 import { decodeText, parseTable } from '@/lib/db-import'
+import { importDocumentWithToast } from '@/lib/import-doc'
 import type { DocBlock } from '@/lib/blocks'
 import { fetchShare, uploadFile } from '@/lib/api'
 import { EmbedBlock } from '@/components/embed-block'
@@ -184,6 +185,14 @@ function slashItems(editor: Editor) {
       group: 'Insertar',
       icon: <CalendarRange size={18} />,
       onItemClick: () => insertOrUpdateBlockForSlashMenu(editor, { type: 'timeline' } as never),
+    },
+    {
+      title: 'Importar documento',
+      subtext: 'Traé un archivo Markdown (.md), Word (.docx) o HTML con sus títulos, listas y tablas',
+      aliases: ['importar', 'documento', 'word', 'docx', 'markdown', 'md', 'archivo', 'claude', 'pegar'],
+      group: 'Insertar',
+      icon: <FileUp size={18} />,
+      onItemClick: () => void importDocumentWithToast(editor as unknown as BlockNoteEditor, 'cursor'),
     },
     {
       title: 'Insertar HTML o web',
