@@ -33,6 +33,7 @@ export type PublicDoc = {
   title: string
   icon: string | null
   coverUrl: string | null
+  logoUrl: string | null
   content: string | null
   updatedAt: string
 }
@@ -40,15 +41,15 @@ export type PublicDoc = {
 /** A document's own data, without any access check. */
 async function readDoc(ref: DocRef): Promise<PublicDoc | null> {
   if (ref.kind === 'row') {
-    const r = await db.dbRow.findUnique({ where: { id: ref.id }, select: { title: true, icon: true, content: true, updatedAt: true } })
-    return r ? { ...ref, title: r.title, icon: r.icon, coverUrl: null, content: r.content, updatedAt: r.updatedAt.toISOString() } : null
+    const r = await db.dbRow.findUnique({ where: { id: ref.id }, select: { title: true, icon: true, logoUrl: true, content: true, updatedAt: true } })
+    return r ? { ...ref, title: r.title, icon: r.icon, coverUrl: null, logoUrl: r.logoUrl, content: r.content, updatedAt: r.updatedAt.toISOString() } : null
   }
   if (ref.kind === 'card') {
-    const c = await db.card.findUnique({ where: { id: ref.id }, select: { title: true, icon: true, coverUrl: true, description: true, updatedAt: true } })
-    return c ? { ...ref, title: c.title, icon: c.icon, coverUrl: c.coverUrl, content: c.description, updatedAt: c.updatedAt.toISOString() } : null
+    const c = await db.card.findUnique({ where: { id: ref.id }, select: { title: true, icon: true, coverUrl: true, logoUrl: true, description: true, updatedAt: true } })
+    return c ? { ...ref, title: c.title, icon: c.icon, coverUrl: c.coverUrl, logoUrl: c.logoUrl, content: c.description, updatedAt: c.updatedAt.toISOString() } : null
   }
-  const s = await db.subPage.findUnique({ where: { id: ref.id }, select: { title: true, icon: true, content: true, updatedAt: true } })
-  return s ? { ...ref, title: s.title, icon: s.icon, coverUrl: null, content: s.content, updatedAt: s.updatedAt.toISOString() } : null
+  const s = await db.subPage.findUnique({ where: { id: ref.id }, select: { title: true, icon: true, logoUrl: true, content: true, updatedAt: true } })
+  return s ? { ...ref, title: s.title, icon: s.icon, coverUrl: null, logoUrl: s.logoUrl, content: s.content, updatedAt: s.updatedAt.toISOString() } : null
 }
 
 /** True when the sub-page lives (at any depth) inside the shared document. */
@@ -92,5 +93,5 @@ export function rewriteFileUrls(text: string, token: string, subpageId?: string 
 export function docUsesFile(doc: PublicDoc, fileId: string) {
   if (!/^[A-Za-z0-9_-]+$/.test(fileId)) return false
   const re = new RegExp(`/api/files/${fileId}(?![A-Za-z0-9_-])`)
-  return re.test(doc.content ?? '') || re.test(doc.coverUrl ?? '')
+  return re.test(doc.content ?? '') || re.test(doc.coverUrl ?? '') || re.test(doc.logoUrl ?? '')
 }

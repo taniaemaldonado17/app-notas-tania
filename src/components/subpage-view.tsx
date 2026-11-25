@@ -14,6 +14,7 @@ import { importDocumentWithToast } from '@/lib/import-doc'
 import { useSubPages, type SubPageCrumb } from '@/lib/subpage-store'
 import type { SubPageInfo } from '@/lib/subpages'
 import { DocShareMenu } from '@/components/doc-share-menu'
+import { DocLogo } from '@/components/doc-logo'
 
 const RichEditor = dynamic(() => import('@/components/rich-editor'), {
   ssr: false,
@@ -59,10 +60,11 @@ export function SubPageView({
     }
   }, [current.id])
 
-  async function saveMeta(patch: { title?: string; icon?: string | null }) {
+  async function saveMeta(patch: { title?: string; icon?: string | null; logoUrl?: string | null }) {
     try {
       await api.updateSubPageMeta(current.id, patch)
-      useSubPages.getState().rename(current.id, patch)
+      const { title: t, icon: i } = patch
+      if (t !== undefined || i !== undefined) useSubPages.getState().rename(current.id, { ...(t !== undefined ? { title: t } : {}), ...(i !== undefined ? { icon: i } : {}) })
       setSub((s) => (s ? { ...s, ...patch } : s))
     } catch {
       toast.error('No se pudo guardar')
@@ -105,6 +107,7 @@ export function SubPageView({
               getDoc={() => ({
                 title,
                 icon: sub.icon,
+                logoUrl: sub.logoUrl,
                 blocks: (editorRef.current?.document as DocBlock[] | undefined) ?? parseDoc(sub.content),
               })}
             />
@@ -147,6 +150,7 @@ export function SubPageView({
         ) : (
           <>
             <div className="space-y-1">
+              <DocLogo url={sub.logoUrl} onChange={(logoUrl) => saveMeta({ logoUrl })} />
               <EmojiPicker onSelect={(e) => void saveMeta({ icon: e })} onRemove={sub.icon ? () => void saveMeta({ icon: null }) : undefined}>
                 <button
                   type="button"
@@ -180,6 +184,7 @@ export function SubPageView({
               <SubPageEditor
                 key={sub.id}
                 sub={sub}
+                onUseAsLogo={(logoUrl) => void saveMeta({ logoUrl })}
                 onEditor={(e) => {
                   editorRef.current = e
                 }}
@@ -192,7 +197,7 @@ export function SubPageView({
   )
 }
 
-function SubPageEditor({ sub, onEditor }: { sub: SubPageInfo; onEditor: (e: BlockNoteEditor | null) => void }) {
+function SubPageEditor({ sub, onEditor, onUseAsLogo }: { sub: SubPageInfo; onEditor: (e: BlockNoteEditor | null) => void; onUseAsLogo: (url: string) => void }) {
   const [blocks] = useState<DocBlock[]>(() => parseDoc(sub.content))
   const sync = useDocSync({
     initial: sub.content,
@@ -204,6 +209,7 @@ function SubPageEditor({ sub, onEditor }: { sub: SubPageInfo; onEditor: (e: Bloc
       initialBlocks={blocks}
       pageId={sub.pageId}
       docRef={{ kind: 'subpage', id: sub.id }}
+      onUseAsLogo={onUseAsLogo}
       onChange={sync.onChange}
       onReady={(editor) => {
         sync.onReady(editor)

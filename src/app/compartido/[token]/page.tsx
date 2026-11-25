@@ -47,6 +47,7 @@ export default async function SharedDocPage(props: Props) {
         title: doc.title,
         icon: doc.icon,
         coverUrl: doc.coverUrl ? rewriteFileUrls(doc.coverUrl, token, subpageId) : null,
+        logoUrl: doc.logoUrl ? rewriteFileUrls(doc.logoUrl, token, subpageId) : null,
         content: doc.content ? rewriteFileUrls(doc.content, token, subpageId) : null,
         updatedAt: doc.updatedAt,
       }}

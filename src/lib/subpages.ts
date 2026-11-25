@@ -15,6 +15,7 @@ export type SubPageInfo = {
   pageId: string
   title: string
   icon: string | null
+  logoUrl: string | null
   content: string | null
   parent: DocRef
   /** From the top document (row or card) down to this sub-page's parent. */

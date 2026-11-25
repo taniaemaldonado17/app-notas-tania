@@ -1,3 +1,4 @@
+import { logoUrlFromBody } from '@/lib/doc-logo'
 import { after, NextResponse } from 'next/server'
 import { saveVersionBeforeChange } from '@/lib/versions'
 import { db } from '@/lib/db'
@@ -47,6 +48,7 @@ export async function PATCH(
       coverUrl?: string | null
       accentColor?: string | null
       icon?: string | null
+      logoUrl?: string | null
       position?: number
       columnId?: string
     } = {}
@@ -59,6 +61,8 @@ export async function PATCH(
     if (typeof body.accentColor === 'string')
       data.accentColor = body.accentColor || null
     if (typeof body.icon === 'string') data.icon = body.icon || null
+    const logoUrl = logoUrlFromBody(body.logoUrl)
+    if (logoUrl !== undefined) data.logoUrl = logoUrl
     if (typeof body.position === 'number') data.position = body.position
     if (typeof body.columnId === 'string' && body.columnId !== card.columnId) {
       // Validate destination column ownership before move

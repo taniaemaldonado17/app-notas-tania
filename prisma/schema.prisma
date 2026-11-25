@@ -97,6 +97,8 @@ model Card {
   coverUrl    String?
   accentColor String?
   icon        String?
+  // Image shown above the title (e.g. the studio's logo), also in the PDF.
+  logoUrl     String?
   // Deprecated: see Favorite.
   favorite    Boolean  @default(false)
   favoritedBy Favorite[]
@@ -303,6 +305,8 @@ model DbRow {
   database    Database  @relation(fields: [databaseId], references: [id], onDelete: Cascade)
   title       String    @default("")
   icon        String?
+  // Image shown above the title (e.g. the studio's logo), also in the PDF.
+  logoUrl     String?
   values      Json      @default("{}")
   content     String?
   position    Float     @default(0)
@@ -588,6 +592,8 @@ model SubPage {
   children        SubPage[] @relation("SubPageNesting")
   title           String    @default("")
   icon            String?
+  // Image shown above the title (e.g. the studio's logo), also in the PDF.
+  logoUrl         String?
   // Same format as DbRow.content (see src/lib/blocks.ts)
   content         String?
   createdById     String?

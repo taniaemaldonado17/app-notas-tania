@@ -56,6 +56,7 @@ import { useOpenSubPages, useSubPages } from '@/lib/subpage-store'
 import { SubPageRootContext } from '@/components/subpage-block'
 import { SubPageView } from '@/components/subpage-view'
 import { DocShareMenu } from '@/components/doc-share-menu'
+import { DocLogo } from '@/components/doc-logo'
 import { printDoc } from '@/lib/print-doc'
 import { formatDateAR, hexToRgba } from '@/lib/utils'
 
@@ -300,6 +301,7 @@ function PanelBody({
       title: card.title,
       icon: card.icon,
       coverUrl: card.coverUrl,
+      logoUrl: card.logoUrl ?? null,
       blocks: (editorRef.current?.document as DocBlock[] | undefined) ?? initialBlocks,
     }
   }
@@ -472,6 +474,9 @@ function PanelBody({
         className="peek-body flex flex-1 flex-col gap-4 overflow-y-auto p-5 notion-scroll"
         style={accentStyle}
       >
+        {/* Logo above the title (also at the top of the PDF) */}
+        <DocLogo url={card.logoUrl} onChange={(url) => workspace.updateCard(card.id, { logoUrl: url })} />
+
         {/* Title row: emoji icon + inline editable title */}
         <div className="flex items-start gap-2">
           {card.icon && (
@@ -634,6 +639,7 @@ function PanelBody({
             onChange={sync.onChange}
             pageId={workspace.page?.id}
             docRef={{ kind: 'card', id: card.id }}
+            onUseAsLogo={(url) => void workspace.updateCard(card.id, { logoUrl: url })}
             onReady={(editor) => {
               sync.onReady(editor)
             }}

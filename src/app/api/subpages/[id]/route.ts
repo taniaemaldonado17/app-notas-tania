@@ -5,6 +5,7 @@ import { getAuthUserId } from '@/lib/auth-helpers'
 import { saveVersionBeforeChange } from '@/lib/versions'
 import { hashDoc } from '@/lib/doc-merge'
 import { appOrigin, notifyNewMentions } from '@/lib/mentions'
+import { logoUrlFromBody } from '@/lib/doc-logo'
 import { findAccessibleSubPage, subPageInfo, syncLinkBlock } from '@/lib/subpages-server'
 
 /** A sub-page with its content and where it lives (breadcrumbs). */
@@ -33,6 +34,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const data: Prisma.SubPageUpdateInput = {}
     if (typeof body.title === 'string') data.title = body.title.slice(0, 2000)
     if (body.icon === null || typeof body.icon === 'string') data.icon = body.icon ? String(body.icon).slice(0, 16) : null
+    const logoUrl = logoUrlFromBody(body.logoUrl)
+    if (logoUrl !== undefined) data.logoUrl = logoUrl
     const contentChanged = body.content === null || typeof body.content === 'string'
     if (contentChanged) {
       data.content = body.content || null

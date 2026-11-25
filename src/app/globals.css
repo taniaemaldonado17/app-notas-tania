@@ -1035,6 +1035,7 @@ body.row-dragging, body.row-dragging * { cursor: grabbing !important; user-selec
   margin-bottom: 20px;
 }
 .doc-paper-header { margin-bottom: 12px; }
+.doc-paper-logo { display: block; max-height: 96px; max-width: 260px; object-fit: contain; margin-bottom: 16px; }
 .doc-paper-icon { font-size: 44px; line-height: 1.1; margin-bottom: 6px; }
 .doc-paper-title { font-size: 2rem; font-weight: 700; line-height: 1.2; margin: 0; word-break: break-word; }
 .doc-paper-empty { color: #86868b; font-size: 0.9rem; }

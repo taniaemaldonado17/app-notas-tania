@@ -22,6 +22,7 @@ import { bulletsToLists } from '@/lib/list-glyphs'
 import { blockText, findSubPageBlocks, pageContentFor, SUBPAGE_BLOCK } from '@/lib/subpages'
 import { useSubPages } from '@/lib/subpage-store'
 import { DocRefContext, SubPageRootContext } from '@/components/subpage-block'
+import { UseAsLogoContext } from '@/components/doc-logo'
 
 type AnyBlock = { id: string; type: string; props: Record<string, unknown>; content?: unknown; children?: unknown[] }
 
@@ -220,10 +221,33 @@ function DuplicateItem() {
   )
 }
 
+/** On an image: it becomes the page's logo, above the title (and leaves the text). */
+function UseAsLogoItem() {
+  const Components = useComponentsContext()!
+  const editor = useBlockNoteEditor() as never as Parameters<typeof blockTypeSelectItems>[0]
+  const block = useExtensionState(SideMenuExtension, { editor, selector: (s) => s?.block }) as AnyBlock | undefined
+  const setLogo = useContext(UseAsLogoContext)
+  const url = block?.type === 'image' && typeof block.props?.url === 'string' ? (block.props.url as string) : ''
+  if (!block || !setLogo || !url) return null
+  return (
+    <Components.Generic.Menu.Item
+      className="bn-menu-item"
+      onClick={() => {
+        setLogo(url)
+        editor.removeBlocks([block.id])
+        toast.success('Listo: el logo va arriba del título')
+      }}
+    >
+      Usar como logo (arriba del título)
+    </Components.Generic.Menu.Item>
+  )
+}
+
 /** Menu of the ⋮⋮ handle next to each block. */
 export function BlockHandleMenu() {
   return (
     <DragHandleMenu>
+      <UseAsLogoItem />
       <TurnIntoItem />
       <MoveToPageItem />
       <DuplicateItem />

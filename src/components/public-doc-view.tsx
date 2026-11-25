@@ -15,13 +15,13 @@ const DocPaper = dynamic(() => import('@/components/doc-read-only'), {
 type Props = {
   token: string
   isSubPage: boolean
-  doc: { title: string; icon: string | null; coverUrl: string | null; content: string | null; updatedAt: string }
+  doc: { title: string; icon: string | null; coverUrl: string | null; logoUrl: string | null; content: string | null; updatedAt: string }
 }
 
 /** What someone with a shared link sees: the page, read-only, on white. */
 export function PublicDocView({ token, isSubPage, doc }: Props) {
   const paper = useMemo(
-    () => ({ title: doc.title, icon: doc.icon, coverUrl: doc.coverUrl, blocks: parseDoc(doc.content) }),
+    () => ({ title: doc.title, icon: doc.icon, coverUrl: doc.coverUrl, logoUrl: doc.logoUrl, blocks: parseDoc(doc.content) }),
     [doc]
   )
 

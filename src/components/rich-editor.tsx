@@ -28,6 +28,7 @@ import { DocRefContext, SubPageRootContext } from '@/components/subpage-block'
 import { useSubPages } from '@/lib/subpage-store'
 import type { DocRef } from '@/lib/subpages'
 import { EditorPeopleContext } from '@/components/editor-people'
+import { UseAsLogoContext } from '@/components/doc-logo'
 import { BlockHandleMenu, blockTypeItems } from '@/components/block-handle-menu'
 
 export type MentionPerson = { id: string; name: string | null; email: string }
@@ -66,6 +67,8 @@ type Props = {
   pageId?: string
   /** The document being edited: enables "Página" (pages inside the document). */
   docRef?: DocRef
+  /** Enables "Usar como logo" on images (moves one above the title). */
+  onUseAsLogo?: (url: string) => void
 }
 
 const shareCache = new Map<string, Promise<MentionPerson[]>>()
@@ -334,7 +337,7 @@ function slashItems(editor: Editor, docRef?: DocRef, root: string | null = null)
  *
  * Must be loaded client-side only (see card-detail-panel.tsx).
  */
-export default function RichEditor({ initialBlocks, onChange, onReady, people, pageId, docRef }: Props) {
+export default function RichEditor({ initialBlocks, onChange, onReady, people, pageId, docRef, onUseAsLogo }: Props) {
   const { resolvedTheme } = useTheme()
   const panelRoot = useContext(SubPageRootContext)
   const [loaded, setLoaded] = useState<MentionPerson[]>([])
@@ -399,6 +402,7 @@ export default function RichEditor({ initialBlocks, onChange, onReady, people, p
 
   return (
     <EditorPeopleContext.Provider value={mentionable}>
+    <UseAsLogoContext.Provider value={onUseAsLogo ?? null}>
     <DocRefContext.Provider value={docRef ?? null}>
     <div onKeyDownCapture={onKeyDownCapture} className="contents">
     <BlockNoteView
@@ -430,6 +434,7 @@ export default function RichEditor({ initialBlocks, onChange, onReady, people, p
     </BlockNoteView>
     </div>
     </DocRefContext.Provider>
+    </UseAsLogoContext.Provider>
     </EditorPeopleContext.Provider>
   )
 }

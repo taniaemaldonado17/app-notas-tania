@@ -13,6 +13,8 @@ export type PaperDoc = {
   title: string
   icon?: string | null
   coverUrl?: string | null
+  /** Logo above the title (letterhead). */
+  logoUrl?: string | null
   blocks: DocBlock[]
 }
 
@@ -68,6 +70,7 @@ export default function DocPaper({
     <div ref={ref} className="doc-paper">
       {doc.coverUrl && <img src={doc.coverUrl} alt="" className="doc-paper-cover" />}
       <header className="doc-paper-header">
+        {doc.logoUrl ? <img src={doc.logoUrl} alt="" className="doc-paper-logo" /> : null}
         {doc.icon ? <div className="doc-paper-icon">{doc.icon}</div> : null}
         <h1 className="doc-paper-title">{doc.title || 'Sin título'}</h1>
       </header>
