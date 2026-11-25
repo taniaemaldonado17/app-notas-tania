@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
 import { docUsesFile, findPublicLink, publicDoc } from '@/lib/public-links'
+import { uploadResponse } from '@/lib/serve-upload'
 
 /**
  * An uploaded file (image) of a publicly shared document, for people without
@@ -13,17 +13,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   if (!link) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   const doc = await publicDoc(link, new URL(req.url).searchParams.get('p'))
   if (!doc || !docUsesFile(doc, fileId)) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
-
-  const upload = await db.upload.findUnique({ where: { id: fileId } })
-  if (!upload) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
-  return new Response(new Uint8Array(upload.data), {
-    headers: {
-      'Content-Type': upload.mimeType,
-      'Content-Length': String(upload.size),
-      'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(upload.name)}`,
-      'X-Content-Type-Options': 'nosniff',
-      // Short cache: stopping sharing should take effect soon.
-      'Cache-Control': 'public, max-age=300',
-    },
-  })
+  // Short cache: stopping sharing should take effect soon.
+  return uploadResponse(fileId, 'public, max-age=300')
 }
