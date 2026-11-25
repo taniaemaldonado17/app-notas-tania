@@ -15,9 +15,11 @@ import {
 import { useContext } from 'react'
 import { FileText, Lightbulb } from 'lucide-react'
 import { toast } from 'sonner'
-import { createSubPage } from '@/lib/api'
-import { serializeDoc, type DocBlock } from '@/lib/blocks'
-import { blockText } from '@/lib/subpages'
+import { createSubPage, fetchSubPage, saveDocContent } from '@/lib/api'
+import { parseDoc, serializeDoc, type DocBlock } from '@/lib/blocks'
+import { hashDoc } from '@/lib/doc-merge'
+import { bulletsToLists } from '@/lib/list-glyphs'
+import { blockText, findSubPageBlocks, pageContentFor, SUBPAGE_BLOCK } from '@/lib/subpages'
 import { useSubPages } from '@/lib/subpage-store'
 import { DocRefContext, SubPageRootContext } from '@/components/subpage-block'
 
@@ -40,28 +42,106 @@ function targets(editor: Parameters<typeof blockTypeSelectItems>[0], block: AnyB
   return sel && sel.some((b) => b.id === block.id) ? sel : [block]
 }
 
+type MenuEditor = Parameters<typeof blockTypeSelectItems>[0]
+
+/** Blocks at the same level as `block` (its parent's children, or the top of the document). */
+function siblingsOf(editor: MenuEditor, block: AnyBlock): AnyBlock[] {
+  const parent = editor.getParentBlock(block.id) as unknown as AnyBlock | undefined
+  return ((parent ? parent.children : editor.document) ?? []) as AnyBlock[]
+}
+
 /**
  * "Convertir en → Página": the block's text becomes the title of a new page
- * inside this document and its nested blocks become the page's content.
+ * inside this document and what belongs to it (see pageContentFor) moves into
+ * the page, so the document only keeps the link. Pasted bullets ("• …") are
+ * turned into real lists on the way.
  */
-async function turnIntoSubPage(
-  editor: Parameters<typeof blockTypeSelectItems>[0],
-  block: AnyBlock,
-  docRef: NonNullable<React.ContextType<typeof DocRefContext>>,
-  root: string | null
-) {
-  const title = blockText(block as unknown as DocBlock)
+async function turnIntoSubPage(editor: MenuEditor, block: AnyBlock, docRef: NonNullable<React.ContextType<typeof DocRefContext>>, root: string | null) {
+  const picked = pageContentFor(block as DocBlock, targets(editor, block) as DocBlock[], siblingsOf(editor, block) as DocBlock[])
+  const title = blockText(picked.title).slice(0, 2000)
   try {
     const sub = await createSubPage({
       parent: docRef,
       title,
-      content: serializeDoc((block.children ?? []) as DocBlock[]),
+      content: serializeDoc(bulletsToLists(picked.content)),
     })
-    editor.replaceBlocks([block.id], [{ type: 'subpage', props: { subpageId: sub.id, title, icon: '' } }] as never)
+    editor.transact(() => {
+      if (picked.taken.length) editor.removeBlocks(picked.taken.map((b) => b.id))
+      editor.replaceBlocks([picked.title.id], [{ type: 'subpage', props: { subpageId: sub.id, title, icon: '' } }] as never)
+    })
     if (root) useSubPages.getState().open(root, { id: sub.id, title, icon: null })
   } catch {
     toast.error('No se pudo convertir en página')
   }
+}
+
+/**
+ * "Mover a → <página>": appends the block (or the selected blocks) at the end
+ * of a page that lives in this document, and removes them from here.
+ */
+async function moveIntoSubPage(editor: MenuEditor, list: AnyBlock[], target: { subpageId: string; title: string; icon: string }, root: string | null) {
+  const moving = list.filter((b) => b.type !== SUBPAGE_BLOCK)
+  if (!moving.length) return
+  try {
+    let saved = false
+    for (let attempt = 0; attempt < 3 && !saved; attempt++) {
+      const sub = await fetchSubPage(target.subpageId)
+      const next = [...parseDoc(sub.content), ...bulletsToLists(moving as DocBlock[])]
+      const res = await saveDocContent('subpage', target.subpageId, serializeDoc(next), hashDoc(sub.content))
+      saved = 'ok' in res
+    }
+    if (!saved) throw new Error('conflict')
+    editor.removeBlocks(moving.map((b) => b.id))
+    toast.success(`Se movió a "${target.title || 'Sin título'}"`, {
+      action: root
+        ? { label: 'Abrir', onClick: () => useSubPages.getState().open(root, { id: target.subpageId, title: target.title, icon: target.icon || null }) }
+        : undefined,
+    })
+  } catch {
+    toast.error('No se pudo mover a la página')
+  }
+}
+
+/** Links to pages anywhere in the document (nested too). */
+function subPageLinks(blocks: AnyBlock[]): AnyBlock[] {
+  return findSubPageBlocks(blocks as DocBlock[]) as AnyBlock[]
+}
+
+function MoveToPageItem() {
+  const Components = useComponentsContext()!
+  const editor = useBlockNoteEditor() as never as MenuEditor
+  const portal = usePortalElement()
+  const docRef = useContext(DocRefContext)
+  const root = useContext(SubPageRootContext)
+  const block = useExtensionState(SideMenuExtension, { editor, selector: (s) => s?.block }) as AnyBlock | undefined
+  if (!docRef || !block || block.type === SUBPAGE_BLOCK) return null
+  const pages = subPageLinks(editor.document as unknown as AnyBlock[])
+  if (!pages.length) return null
+
+  return (
+    <Components.Generic.Menu.Root position="right" sub portalElement={portal}>
+      <Components.Generic.Menu.Trigger sub>
+        <Components.Generic.Menu.Item className="bn-menu-item" subTrigger>
+          Mover a
+        </Components.Generic.Menu.Item>
+      </Components.Generic.Menu.Trigger>
+      <Components.Generic.Menu.Dropdown sub className="bn-menu-dropdown">
+        {pages.map((p) => {
+          const props = p.props as { subpageId: string; title: string; icon: string }
+          return (
+            <Components.Generic.Menu.Item
+              key={p.id}
+              className="bn-menu-item"
+              icon={props.icon ? <span className="text-base leading-none">{props.icon}</span> : <FileText size={16} />}
+              onClick={() => void moveIntoSubPage(editor, targets(editor, block), props, root)}
+            >
+              {props.title || 'Sin título'}
+            </Components.Generic.Menu.Item>
+          )
+        })}
+      </Components.Generic.Menu.Dropdown>
+    </Components.Generic.Menu.Root>
+  )
 }
 
 function TurnIntoItem() {
@@ -145,6 +225,7 @@ export function BlockHandleMenu() {
   return (
     <DragHandleMenu>
       <TurnIntoItem />
+      <MoveToPageItem />
       <DuplicateItem />
       <BlockColorsItem>Colores</BlockColorsItem>
       <RemoveBlockItem>Eliminar</RemoveBlockItem>

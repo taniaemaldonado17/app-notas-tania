@@ -153,7 +153,13 @@ El enlace funciona como una contraseña. Desde el mismo diálogo se puede genera
 
 ## Páginas dentro de documentos
 
-Como el bloque **Página** de Notion: dentro del documento de una fila, una tarjeta u otra página, `/` → **Página** crea una página con su propio título, ícono y contenido, que aparece como un renglón para abrirla. También se puede tomar un bloque de texto y hacer **⋮⋮ → Convertir en → Página**: el texto pasa a ser el título y los bloques anidados, el contenido.
+Como el bloque **Página** de Notion: dentro del documento de una fila, una tarjeta u otra página, `/` → **Página** crea una página con su propio título, ícono y contenido, que aparece como un renglón para abrirla. También se puede tomar un bloque de texto y hacer **⋮⋮ → Convertir en → Página**: el texto pasa a ser el título y en el documento queda solo el enlace. Lo que se mueve a la página:
+
+- si seleccionaste varios bloques, el primero es el título y todos los demás pasan a la página;
+- si es un encabezado, todo lo que está debajo hasta el siguiente encabezado del mismo nivel o mayor;
+- si no, sus bloques anidados (como en Notion).
+
+Para pasar texto a una página que ya existe: seleccionalo y **⋮⋮ → Mover a → (página)**. Al pegar texto de Word, Outlook o un PDF, las líneas que empiezan con una viñeta como carácter (`•`, `·`, `◦`…) o con `1.` se convierten en listas de verdad (también al mover texto a una página).
 
 - Se abre en el mismo panel, con migas de pan para volver; el botón Atrás del navegador también vuelve.
 - Enlace directo: `/?subpage=<id>` (botón de enlace en la página).
@@ -164,6 +170,10 @@ Como el bloque **Página** de Notion: dentro del documento de una fila, una tarj
 ## Importar documentos
 
 En cualquier documento (tarjeta o fila), con `/` → **Importar documento**, el botón de importar del panel de una fila o **Más opciones → Importar documento** de una tarjeta, se puede traer un archivo Markdown (`.md`), Word (`.docx`) o HTML conservando títulos, negritas, listas y tablas. Las imágenes de los Word se suben como cualquier imagen.
+
+De un Word también se traen el logo del encabezado, la alineación (centrado, justificado), los títulos escritos con letra grande y los resaltados. Los colores de letra no: para eso, copiar y pegar.
+
+**Pegar desde Word** (Ctrl+V) conserva viñetas y numeración (con niveles), títulos, alineación, negritas, colores y resaltados (llevados a los colores del editor, como en Notion), los renglones en blanco y las imágenes del texto (se suben como cualquier imagen). El logo del encabezado no viaja al copiar: pegalo aparte o importá el .docx. Código en `src/lib/word-paste.ts`.
 
 ## Estructura del proyecto
 
