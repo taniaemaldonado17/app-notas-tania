@@ -15,6 +15,7 @@ import { findOption, formatNumber, type DatabaseDef, type DbRow, type PropertyDe
 import { saveVersionBeforeChange } from '@/lib/versions'
 import { parseDoc, serializeDoc, type DocBlock } from '@/lib/blocks'
 import { blocksToMarkdown, markdownToBlocks } from '@/lib/md-blocks'
+import { editBlocks, EditError, replaceText, type BlockAction } from '@/lib/block-edit'
 import { text, ToolError, type ToolDef, type ToolResult } from '@/lib/mcp/protocol'
 import { blockText, findSubPageBlocks, subPageBlock, SUBPAGE_BLOCK, type DocRef } from '@/lib/subpages'
 import { createSubPage, findAccessibleDoc, findAccessibleSubPage, parentOf, subPageTrail, syncLinkBlock, writeContent } from '@/lib/subpages-server'
@@ -28,6 +29,7 @@ export const INSTRUCTIONS = `Malta es la app de notas y proyectos de la usuaria 
 - Para guardar un documento nuevo: listar_paginas → elegí la base de datos o la columna adecuada → crear_documento.
 - Para cambiar uno existente: buscar o listar_entradas → leer_documento → actualizar_documento.
 - Un documento puede tener páginas adentro (como en Notion). En el Markdown aparecen como una línea "📄 [Título](subpagina:ID)": leelas con leer_documento usando ese ID. Para crear una, usá crear_documento con dentro_de; para pasar una parte de un documento a una página propia, convertir_en_subpagina.
+- Para cambios puntuales (corregir un párrafo, cambiar unas palabras, agregar o borrar un bloque) usá editar_bloques o reemplazar_texto: dejan el resto del documento intacto, con su formato. actualizar_documento con modo "reemplazar" reescribe todo el documento y pierde colores y alineaciones.
 - Antes de reemplazar el contenido de un documento existente, confirmá con la usuaria si no lo pidió explícitamente.`
 
 /* --------------------------------- Schemas -------------------------------- */
@@ -133,6 +135,44 @@ export const TOOLS: ToolDef[] = [
       additionalProperties: false,
     },
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+  },
+  {
+    name: 'editar_bloques',
+    title: 'Editar bloques',
+    description:
+      'Cambia una parte puntual de un documento sin tocar el resto (formato, colores e imágenes quedan igual). Ubica el bloque (párrafo, título, ítem de lista…) cuyo texto contiene "buscar" y lo reemplaza por el Markdown nuevo, inserta Markdown antes o después, o lo elimina. Con "hasta" abarca desde ese bloque hasta el que contiene ese otro texto, al mismo nivel. Leé el documento antes para elegir un texto que identifique un solo bloque.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: idProp('Id de la fila, tarjeta o página interna'),
+        accion: { type: 'string', enum: ['reemplazar', 'insertar_despues', 'insertar_antes', 'eliminar'] },
+        buscar: { type: 'string', description: 'Parte del texto del bloque (sin importar mayúsculas ni acentos)' },
+        hasta: { type: 'string', description: 'Opcional: texto del último bloque del rango' },
+        markdown: { type: 'string', description: 'Contenido nuevo en Markdown (para reemplazar o insertar)' },
+        ocurrencia: { type: 'integer', minimum: 1, description: 'Si varios bloques contienen el texto: cuál (1 = el primero)' },
+      },
+      required: ['id', 'accion', 'buscar'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+  },
+  {
+    name: 'reemplazar_texto',
+    title: 'Reemplazar texto',
+    description:
+      'Cambia palabras exactas dentro de un documento conservando el formato de cada parte (negritas, colores, enlaces). El texto tiene que aparecer una sola vez, salvo que pases todas: true.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: idProp('Id de la fila, tarjeta o página interna'),
+        buscar: { type: 'string', description: 'Texto exacto a cambiar (respeta mayúsculas y acentos)' },
+        reemplazo: { type: 'string', description: 'Texto nuevo' },
+        todas: { type: 'boolean', description: 'Cambiar todas las apariciones' },
+      },
+      required: ['id', 'buscar', 'reemplazo'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
   {
     name: 'convertir_en_subpagina',
@@ -698,6 +738,64 @@ export function makeRunner(userId: string, origin: string) {
     throw new ToolError('No encontré una fila, tarjeta ni página con ese id (o no tenés acceso)')
   }
 
+  /** Loads a document for a targeted edit; saves a version first. */
+  async function docForEdit(id: string | undefined) {
+    if (!id) throw new ToolError('Falta el id')
+    const ref = await kindOf(id)
+    const doc = ref ? await findAccessibleDoc(userId, ref) : null
+    if (!ref || !doc) throw new ToolError('No encontré una fila, tarjeta ni página con ese id (o no tenés acceso)')
+    return { ref, doc, blocks: parseDoc(doc.content) }
+  }
+
+  async function saveEdited(ref: DocRef, pageId: string, blocks: DocBlock[]) {
+    const stored = serializeDoc(ensureIds(blocks))
+    if (stored && stored.length > MAX_STORED) throw new ToolError('El documento quedaría demasiado grande')
+    await saveVersionBeforeChange(pageId, userId)
+    await writeContent(ref, stored)
+  }
+
+  async function editarBloques(args: Record<string, unknown>): Promise<ToolResult> {
+    const { ref, doc, blocks } = await docForEdit(str(args.id))
+    const accion = str(args.accion) as BlockAction | undefined
+    if (!accion || !['reemplazar', 'insertar_despues', 'insertar_antes', 'eliminar'].includes(accion)) {
+      throw new ToolError('accion tiene que ser reemplazar, insertar_despues, insertar_antes o eliminar')
+    }
+    const markdown = readMarkdown(args.markdown)
+    const fresh = markdown ? ensureIds(markdownToBlocks(markdown)) : []
+    const occurrence = typeof args.ocurrencia === 'number' && args.ocurrencia >= 1 ? Math.trunc(args.ocurrencia) : undefined
+    let result
+    try {
+      result = editBlocks(blocks, { action: accion, find: str(args.buscar) ?? '', until: str(args.hasta), blocks: fresh, occurrence })
+    } catch (err) {
+      if (err instanceof EditError) throw new ToolError(err.message)
+      throw err
+    }
+    await saveEdited(ref, doc.pageId, result.blocks)
+    return json({
+      editado: doc.title || 'Sin título',
+      bloques_quitados: result.removed,
+      bloques_nuevos: result.inserted,
+      avisos: result.keptPages ? [`Se mantuvieron ${result.keptPages} enlace(s) a páginas internas que estaban en esa parte`] : undefined,
+      enlace: linkOf(ref),
+    })
+  }
+
+  async function reemplazarTexto(args: Record<string, unknown>): Promise<ToolResult> {
+    const { ref, doc, blocks } = await docForEdit(str(args.id))
+    const buscarTxt = str(args.buscar)
+    const reemplazo = typeof args.reemplazo === 'string' ? args.reemplazo : undefined
+    if (!buscarTxt || reemplazo === undefined) throw new ToolError('Faltan buscar y reemplazo')
+    let result
+    try {
+      result = replaceText(blocks, buscarTxt, reemplazo, args.todas === true)
+    } catch (err) {
+      if (err instanceof EditError) throw new ToolError(err.message)
+      throw err
+    }
+    await saveEdited(ref, doc.pageId, result.blocks)
+    return json({ editado: doc.title || 'Sin título', reemplazos: result.count, enlace: linkOf(ref) })
+  }
+
   /** Moves a run of top-level blocks into a new page inside the same document. */
   async function convertirEnSubpagina(args: Record<string, unknown>): Promise<ToolResult> {
     const id = str(args.id)
@@ -761,6 +859,10 @@ export function makeRunner(userId: string, origin: string) {
         return actualizarDocumento(args)
       case 'convertir_en_subpagina':
         return convertirEnSubpagina(args)
+      case 'editar_bloques':
+        return editarBloques(args)
+      case 'reemplazar_texto':
+        return reemplazarTexto(args)
       default:
         throw new ToolError(`Herramienta desconocida: ${name}`)
     }

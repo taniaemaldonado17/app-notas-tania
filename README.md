@@ -149,6 +149,8 @@ Malta funciona como **conector personalizado** de Claude (servidor MCP en `/api/
 2. En claude.ai: **Personalizar → Conectores → + → Agregar conector personalizado**, nombre `Malta`, pegá el enlace como URL y dejá vacíos los campos de OAuth.
 3. En un chat, activá el conector y pedile, por ejemplo: "guardá este presupuesto en el proyecto del predio en Malta".
 
+Para cambios chicos Claude usa `editar_bloques` (reemplaza, inserta o borra un párrafo puntual) y `reemplazar_texto` (cambia palabras exactas): el resto del documento queda igual, con su formato.
+
 El enlace funciona como una contraseña. Desde el mismo diálogo se puede generar uno nuevo (anula el anterior) o desconectar. Cada cambio que hace Claude queda en el historial de versiones de la página. Pruebas: `npm run test:mcp`.
 
 ## Páginas dentro de documentos
