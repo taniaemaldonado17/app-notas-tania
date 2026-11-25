@@ -62,11 +62,25 @@ export type SnapColumn = {
   cards: SnapCard[]
 }
 
+export type SnapSubPage = {
+  id: string
+  title: string
+  icon: string | null
+  content: string | null
+  parentRowId: string | null
+  parentCardId: string | null
+  parentSubPageId: string | null
+  createdById: string | null
+  createdAt: string
+}
+
 export type PageSnapshot = {
   v: 1
   page: { title: string; subtitle: string | null; icon: string | null; coverUrl: string | null; layout: Prisma.JsonValue }
   databases: SnapDatabase[]
   columns: SnapColumn[]
+  /** Pages inside documents ("Página" blocks). Absent in older versions and when there are none. */
+  subpages?: SnapSubPage[]
 }
 
 /** Current state of a page (comments and favourites are not part of it). */
@@ -124,6 +138,11 @@ export async function takeSnapshot(pageId: string): Promise<PageSnapshot | null>
     },
   })
   if (!page) return null
+  const subpages = await db.subPage.findMany({
+    where: { pageId },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, title: true, icon: true, content: true, parentRowId: true, parentCardId: true, parentSubPageId: true, createdById: true, createdAt: true },
+  })
   return {
     v: 1,
     page: { title: page.title, subtitle: page.subtitle, icon: page.icon, coverUrl: page.coverUrl, layout: page.layout ?? null },
@@ -135,6 +154,8 @@ export async function takeSnapshot(pageId: string): Promise<PageSnapshot | null>
       ...c,
       cards: c.cards.map((k) => ({ ...k, createdAt: k.createdAt.toISOString() })),
     })),
+    // Only when there are some, so pages without sub-pages keep the same fingerprint.
+    ...(subpages.length ? { subpages: subpages.map((sp) => ({ ...sp, createdAt: sp.createdAt.toISOString() })) } : {}),
   }
 }
 
@@ -317,6 +338,55 @@ export async function restoreSnapshot(
             if (k.attachments.length) await tx.attachment.createMany({ data: k.attachments.map((a) => ({ ...a, cardId: k.id })) })
           }
           restored++
+        }
+      }
+
+      /* Sub-pages: brought back (or back to how they were) when their parent
+         document is restored too. Sub-pages created later are left alone. */
+      const snapSubs = snap.subpages ?? []
+      if (snapSubs.length) {
+        const curSubs = new Map((current.subpages ?? []).map((sp) => [sp.id, sp]))
+        const byId = new Map(snapSubs.map((sp) => [sp.id, sp]))
+        const wanted = (sp: SnapSubPage, depth = 0): boolean => {
+          if (depth > 20) return false
+          if (sp.parentRowId) return wantRow(sp.parentRowId)
+          if (sp.parentCardId) return wantCard(sp.parentCardId)
+          const parent = sp.parentSubPageId ? byId.get(sp.parentSubPageId) : undefined
+          return parent ? wanted(parent, depth + 1) : !partial
+        }
+        // Parents first, so nested sub-pages find theirs.
+        const depthOf = (sp: SnapSubPage) => {
+          let d = 0
+          for (let p = sp; p.parentSubPageId && byId.has(p.parentSubPageId) && d < 20; p = byId.get(p.parentSubPageId)!) d++
+          return d
+        }
+        for (const sp of [...snapSubs].sort((a, b) => depthOf(a) - depthOf(b))) {
+          if (!wanted(sp)) continue
+          const now = curSubs.get(sp.id)
+          const data = { title: sp.title, icon: sp.icon, content: sp.content }
+          if (now) {
+            if (!same({ ...now, createdAt: 0 }, { ...sp, createdAt: 0 })) await tx.subPage.update({ where: { id: sp.id }, data })
+            continue
+          }
+          const parentExists = sp.parentRowId
+            ? !!(await tx.dbRow.findUnique({ where: { id: sp.parentRowId }, select: { id: true } }))
+            : sp.parentCardId
+              ? !!(await tx.card.findUnique({ where: { id: sp.parentCardId }, select: { id: true } }))
+              : !!(sp.parentSubPageId && (await tx.subPage.findUnique({ where: { id: sp.parentSubPageId }, select: { id: true } })))
+          if (!parentExists) continue
+          await tx.subPage.deleteMany({ where: { id: sp.id } })
+          await tx.subPage.create({
+            data: {
+              id: sp.id,
+              pageId,
+              ...data,
+              parentRowId: sp.parentRowId,
+              parentCardId: sp.parentCardId,
+              parentSubPageId: sp.parentSubPageId,
+              createdById: sp.createdById && users.has(sp.createdById) ? sp.createdById : null,
+              createdAt: new Date(sp.createdAt),
+            },
+          })
         }
       }
     },

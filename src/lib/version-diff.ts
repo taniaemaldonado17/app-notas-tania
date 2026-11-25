@@ -34,6 +34,16 @@ export function diffSnapshots(version: PageSnapshot, current: PageSnapshot): Ver
     other.push('El ícono, la portada o la descripción de la página eran distintos')
   if (!same(version.page.layout, current.page.layout)) other.push('La disposición de las secciones era distinta')
 
+  /* Sub-pages (pages inside documents) */
+  const curSubs = new Map((current.subpages ?? []).map((sp) => [sp.id, sp]))
+  for (const sp of version.subpages ?? []) {
+    const now = curSubs.get(sp.id)
+    const name = sp.title || 'Sin título'
+    if (!now) other.push(`La página «${name}» (dentro de un documento) ya no existe`)
+    else if (now.title !== sp.title) other.push(`La página «${now.title || 'Sin título'}» se llamaba «${name}»`)
+    else if ((now.content ?? '') !== (sp.content ?? '') || now.icon !== sp.icon) other.push(`Cambió el contenido de la página «${name}»`)
+  }
+
   /* Databases */
   const curDbs = new Map(current.databases.map((d) => [d.id, d]))
   const verDbs = new Map(version.databases.map((d) => [d.id, d]))

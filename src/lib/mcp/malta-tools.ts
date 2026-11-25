@@ -16,6 +16,8 @@ import { saveVersionBeforeChange } from '@/lib/versions'
 import { parseDoc, serializeDoc, type DocBlock } from '@/lib/blocks'
 import { blocksToMarkdown, markdownToBlocks } from '@/lib/md-blocks'
 import { text, ToolError, type ToolDef, type ToolResult } from '@/lib/mcp/protocol'
+import { blockText, findSubPageBlocks, subPageBlock, SUBPAGE_BLOCK, type DocRef } from '@/lib/subpages'
+import { createSubPage, findAccessibleDoc, findAccessibleSubPage, parentOf, subPageTrail, syncLinkBlock, writeContent } from '@/lib/subpages-server'
 
 const MAX_MARKDOWN = 400_000
 const MAX_STORED = 2_000_000
@@ -25,6 +27,7 @@ export const INSTRUCTIONS = `Malta es la app de notas y proyectos de la usuaria 
 - Cada fila o tarjeta tiene su propio documento, que se lee y se escribe en Markdown.
 - Para guardar un documento nuevo: listar_paginas → elegí la base de datos o la columna adecuada → crear_documento.
 - Para cambiar uno existente: buscar o listar_entradas → leer_documento → actualizar_documento.
+- Un documento puede tener páginas adentro (como en Notion). En el Markdown aparecen como una línea "📄 [Título](subpagina:ID)": leelas con leer_documento usando ese ID. Para crear una, usá crear_documento con dentro_de; para pasar una parte de un documento a una página propia, convertir_en_subpagina.
 - Antes de reemplazar el contenido de un documento existente, confirmá con la usuaria si no lo pidió explícitamente.`
 
 /* --------------------------------- Schemas -------------------------------- */
@@ -75,10 +78,11 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'leer_documento',
     title: 'Leer documento',
-    description: 'Lee una fila o tarjeta: título, dónde está, sus propiedades y el contenido de su documento en Markdown.',
+    description:
+      'Lee una fila, una tarjeta o una página interna: título, dónde está, propiedades (filas) y el contenido en Markdown. Las páginas internas aparecen como "📄 [Título](subpagina:ID)".',
     inputSchema: {
       type: 'object',
-      properties: { id: idProp('Id de la fila o tarjeta') },
+      properties: { id: idProp('Id de la fila, tarjeta o página interna') },
       required: ['id'],
       additionalProperties: false,
     },
@@ -88,12 +92,13 @@ export const TOOLS: ToolDef[] = [
     name: 'crear_documento',
     title: 'Crear documento',
     description:
-      'Crea una fila nueva en una base de datos (base_id) o una tarjeta nueva en una columna (columna_id), con título, contenido en Markdown (títulos, negritas, listas, tablas, citas, código) y, para filas, valores de propiedades por nombre.',
+      'Crea una fila nueva en una base de datos (base_id), una tarjeta nueva en una columna (columna_id) o una página dentro de un documento (dentro_de: id de una fila, tarjeta o página; queda como bloque "Página" al final de ese documento). Lleva título, contenido en Markdown (títulos, negritas, listas, tablas, citas, código) y, para filas, valores de propiedades por nombre.',
     inputSchema: {
       type: 'object',
       properties: {
         base_id: idProp('Id de la base de datos donde crear la fila'),
         columna_id: idProp('Id de la columna donde crear la tarjeta'),
+        dentro_de: idProp('Id de la fila, tarjeta o página dentro de la cual crear una página'),
         titulo: { type: 'string', description: 'Título de la fila o tarjeta' },
         contenido_markdown: { type: 'string', description: 'Contenido del documento en Markdown' },
         icono: { type: 'string', description: 'Un emoji (opcional)' },
@@ -113,11 +118,11 @@ export const TOOLS: ToolDef[] = [
     name: 'actualizar_documento',
     title: 'Actualizar documento',
     description:
-      'Cambia una fila o tarjeta existente: título, ícono, propiedades y/o contenido. Con modo "reemplazar" (por defecto) el Markdown reemplaza todo el documento; con "agregar_al_final" se suma después de lo que ya hay. Queda una versión anterior en el historial de la página.',
+      'Cambia una fila, tarjeta o página interna: título, ícono, propiedades (filas) y/o contenido. Con modo "reemplazar" (por defecto) el Markdown reemplaza todo el documento (las líneas "📄 [Título](subpagina:ID)" mantienen las páginas internas; las que falten se agregan al final); con "agregar_al_final" se suma después de lo que ya hay. Queda una versión anterior en el historial de la página.',
     inputSchema: {
       type: 'object',
       properties: {
-        id: idProp('Id de la fila o tarjeta'),
+        id: idProp('Id de la fila, tarjeta o página interna'),
         titulo: { type: 'string' },
         icono: { type: ['string', 'null'], description: 'Emoji, o null para quitarlo' },
         contenido_markdown: { type: 'string' },
@@ -128,6 +133,25 @@ export const TOOLS: ToolDef[] = [
       additionalProperties: false,
     },
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+  },
+  {
+    name: 'convertir_en_subpagina',
+    title: 'Convertir en página',
+    description:
+      'Pasa una parte de un documento a una página propia dentro de ese documento, como "Convertir en → Página" de Notion: los bloques desde el que empieza con desde_texto (hasta antes del que empieza con hasta_texto, o hasta el final) se mueven tal cual a la página nueva y en su lugar queda el bloque "Página". Si el primer bloque es un título y no pasás titulo, ese título pasa a ser el nombre de la página.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: idProp('Id de la fila, tarjeta o página que tiene el contenido'),
+        desde_texto: { type: 'string', description: 'Comienzo del texto del primer bloque a mover (por ejemplo un título)' },
+        hasta_texto: { type: 'string', description: 'Comienzo del texto del primer bloque que NO se mueve (opcional; por defecto hasta el final)' },
+        titulo: { type: 'string', description: 'Título de la página (opcional)' },
+        icono: { type: 'string', description: 'Emoji (opcional)' },
+      },
+      required: ['id', 'desde_texto'],
+      additionalProperties: false,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   },
 ]
 
@@ -159,14 +183,28 @@ function readMarkdown(v: unknown): string | undefined {
   return v
 }
 
-/** New stored content: the Markdown alone, or added after the current content. */
-function buildContent(current: string | null, markdown: string, append: boolean): string | null {
+/**
+ * New stored content: the Markdown alone, or added after the current content.
+ * When replacing, links to pages inside the document that the Markdown left
+ * out are kept at the end (so those pages don't get lost).
+ */
+function buildContent(current: string | null, markdown: string, append: boolean, warnings: string[] = []): string | null {
   const added = markdownToBlocks(markdown)
-  const blocks = ensureIds(append ? [...parseDoc(current), ...added] : added)
-  const stored = serializeDoc(blocks)
+  let blocks: DocBlock[]
+  if (append) {
+    blocks = [...parseDoc(current), ...added]
+  } else {
+    const kept = new Set(findSubPageBlocks(added).map((b) => b.props?.subpageId))
+    const lost = findSubPageBlocks(parseDoc(current)).filter((b) => !kept.has(b.props?.subpageId))
+    if (lost.length) warnings.push(`Se mantuvieron al final ${lost.length} página(s) interna(s) que no estaban en el Markdown`)
+    blocks = [...added, ...lost.map((b) => ({ ...b, children: [] }))]
+  }
+  const stored = serializeDoc(ensureIds(blocks))
   if (stored && stored.length > MAX_STORED) throw new ToolError('El documento quedaría demasiado grande')
   return stored
 }
+
+const norm2 = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
 
 /* ------------------------------ Row properties ----------------------------- */
 
@@ -349,6 +387,16 @@ async function findCard(userId: string, id: string) {
 export function makeRunner(userId: string, origin: string) {
   const rowLink = (id: string) => `${origin}/?row=${encodeURIComponent(id)}`
   const cardLink = (id: string) => `${origin}/?card=${encodeURIComponent(id)}`
+  const subLink = (id: string) => `${origin}/?subpage=${encodeURIComponent(id)}`
+  const linkOf = (ref: DocRef) => (ref.kind === 'row' ? rowLink(ref.id) : ref.kind === 'card' ? cardLink(ref.id) : subLink(ref.id))
+
+  /** Which kind of document an id is (row, card or page inside a document). */
+  async function kindOf(id: string): Promise<DocRef | null> {
+    if (await findRow(userId, id)) return { kind: 'row', id }
+    if (await findCard(userId, id)) return { kind: 'card', id }
+    if (await findAccessibleSubPage(userId, id)) return { kind: 'subpage', id }
+    return null
+  }
 
   async function listarPaginas(): Promise<ToolResult> {
     const pages = await db.page.findMany({
@@ -425,7 +473,7 @@ export function makeRunner(userId: string, origin: string) {
     if (!q) throw new ToolError('Falta el texto a buscar')
     const max = limit(args.limite, 20, 50)
     const match = { contains: q, mode: 'insensitive' as const }
-    const [rows, cards] = await Promise.all([
+    const [rows, cards, subs] = await Promise.all([
       db.dbRow.findMany({
         where: { database: { page: accessiblePageWhere(userId) }, OR: [{ title: match }, { content: match }] },
         orderBy: { updatedAt: 'desc' },
@@ -438,11 +486,18 @@ export function makeRunner(userId: string, origin: string) {
         take: max,
         select: { id: true, title: true, icon: true, column: { select: { title: true, page: { select: { title: true } } } } },
       }),
+      db.subPage.findMany({
+        where: { page: accessiblePageWhere(userId), OR: [{ title: match }, { content: match }] },
+        orderBy: { updatedAt: 'desc' },
+        take: max,
+        select: { id: true, title: true, icon: true, page: { select: { title: true } } },
+      }),
     ])
     return json({
       resultados: [
         ...rows.map((r) => ({ id: r.id, tipo: 'fila', titulo: r.title || 'Sin título', icono: r.icon, base: r.database.title, pagina: r.database.page.title })),
         ...cards.map((c) => ({ id: c.id, tipo: 'tarjeta', titulo: c.title, icono: c.icon, columna: c.column.title, pagina: c.column.page.title })),
+        ...subs.map((sp) => ({ id: sp.id, tipo: 'página interna', titulo: sp.title || 'Sin título', icono: sp.icon, pagina: sp.page.title })),
       ].slice(0, max),
     })
   }
@@ -486,18 +541,52 @@ export function makeRunner(userId: string, origin: string) {
         ].join('\n')
       )
     }
-    throw new ToolError('No encontré una fila ni una tarjeta con ese id (o no tenés acceso)')
+    const sub = await findAccessibleSubPage(userId, id)
+    if (sub) {
+      const trail = await subPageTrail(sub)
+      const where = trail.map((t) => `${t.icon ? `${t.icon} ` : ''}${t.title || 'Sin título'}`).join(' › ')
+      const parent = parentOf(sub)
+      return text(
+        [
+          `# ${sub.icon ? `${sub.icon} ` : ''}${sub.title || 'Sin título'}`,
+          '',
+          `Página dentro de: ${where} (${parent.kind === 'row' ? 'fila' : parent.kind === 'card' ? 'tarjeta' : 'página'} ${parent.id}) · id ${sub.id}`,
+          `Enlace: ${subLink(sub.id)}`,
+          '',
+          '---',
+          '',
+          blocksToMarkdown(parseDoc(sub.content)) || '(La página está vacía)',
+        ].join('\n')
+      )
+    }
+    throw new ToolError('No encontré una fila, tarjeta ni página con ese id (o no tenés acceso)')
   }
 
   async function crearDocumento(args: Record<string, unknown>): Promise<ToolResult> {
     const baseId = str(args.base_id)
     const columnaId = str(args.columna_id)
-    if (!!baseId === !!columnaId) throw new ToolError('Pasá base_id (para una fila) o columna_id (para una tarjeta), uno de los dos')
+    const dentroDe = str(args.dentro_de)
+    if ([baseId, columnaId, dentroDe].filter(Boolean).length !== 1) {
+      throw new ToolError('Pasá uno solo: base_id (fila nueva), columna_id (tarjeta nueva) o dentro_de (página dentro de un documento)')
+    }
     const titulo = str(args.titulo)?.trim().slice(0, 2000)
     if (!titulo) throw new ToolError('Falta el título')
     const markdown = readMarkdown(args.contenido_markdown)
     const content = markdown ? buildContent(null, markdown, false) : null
     const icon = cleanIcon(args.icono) ?? null
+
+    if (dentroDe) {
+      if (args.propiedades !== undefined) throw new ToolError('Las páginas internas no tienen propiedades')
+      const ref = await kindOf(dentroDe)
+      if (!ref) throw new ToolError('No encontré el documento de dentro_de (o no tenés acceso)')
+      const doc = await findAccessibleDoc(userId, ref)
+      if (!doc) throw new ToolError('No encontré el documento de dentro_de (o no tenés acceso)')
+      await saveVersionBeforeChange(doc.pageId, userId)
+      const sub = await createSubPage(userId, doc.pageId, ref, { title: titulo, icon, content })
+      const parentBlocks = [...parseDoc(doc.content), subPageBlock(sub)]
+      await writeContent(ref, serializeDoc(ensureIds(parentBlocks)))
+      return json({ creado: 'página interna', id: sub.id, dentro_de: doc.title || 'Sin título', enlace: subLink(sub.id) })
+    }
 
     if (baseId) {
       const dbRec = await db.database.findFirst({ where: { id: baseId, page: accessiblePageWhere(userId) }, select: { id: true, pageId: true, title: true, properties: true } })
@@ -552,14 +641,14 @@ export function makeRunner(userId: string, origin: string) {
       const data: Prisma.DbRowUpdateInput = {}
       if (titulo) data.title = titulo
       if (icon !== undefined) data.icon = icon
-      if (markdown !== undefined) data.content = buildContent(row.content, markdown, append)
-      let warnings: string[] = []
+      const warnings: string[] = []
+      if (markdown !== undefined) data.content = buildContent(row.content, markdown, append, warnings)
       let patch: Record<string, RowValue> | null = null
       if (args.propiedades !== undefined) {
         const dbRec = await db.database.findUnique({ where: { id: row.databaseId }, select: { properties: true } })
         const properties = (Array.isArray(dbRec?.properties) ? dbRec!.properties : []) as unknown as PropertyDef[]
         const res = valuesFromInput(properties, args.propiedades)
-        warnings = res.warnings
+        warnings.push(...res.warnings)
         patch = res.values
       }
       await saveVersionBeforeChange(row.database.pageId, userId)
@@ -586,12 +675,74 @@ export function makeRunner(userId: string, origin: string) {
       const data: Prisma.CardUpdateInput = {}
       if (titulo) data.title = titulo
       if (icon !== undefined) data.icon = icon
-      if (markdown !== undefined) data.description = buildContent(card.description, markdown, append)
+      const warnings: string[] = []
+      if (markdown !== undefined) data.description = buildContent(card.description, markdown, append, warnings)
       await saveVersionBeforeChange(card.column.pageId, userId)
       await db.card.update({ where: { id }, data })
-      return json({ actualizado: 'tarjeta', id, enlace: cardLink(id) })
+      return json({ actualizado: 'tarjeta', id, enlace: cardLink(id), avisos: warnings.length ? warnings : undefined })
     }
-    throw new ToolError('No encontré una fila ni una tarjeta con ese id (o no tenés acceso)')
+
+    const sub = await findAccessibleSubPage(userId, id)
+    if (sub) {
+      if (args.propiedades !== undefined) throw new ToolError('Las páginas internas no tienen propiedades')
+      const data: Prisma.SubPageUpdateInput = {}
+      const warnings: string[] = []
+      if (titulo) data.title = titulo
+      if (icon !== undefined) data.icon = icon
+      if (markdown !== undefined) data.content = buildContent(sub.content, markdown, append, warnings)
+      await saveVersionBeforeChange(sub.pageId, userId)
+      await db.subPage.update({ where: { id }, data })
+      if (titulo || icon !== undefined) await syncLinkBlock(sub, { ...(titulo ? { title: titulo } : {}), ...(icon !== undefined ? { icon } : {}) })
+      return json({ actualizado: 'página interna', id, enlace: subLink(id), avisos: warnings.length ? warnings : undefined })
+    }
+    throw new ToolError('No encontré una fila, tarjeta ni página con ese id (o no tenés acceso)')
+  }
+
+  /** Moves a run of top-level blocks into a new page inside the same document. */
+  async function convertirEnSubpagina(args: Record<string, unknown>): Promise<ToolResult> {
+    const id = str(args.id)
+    const desde = str(args.desde_texto)?.trim()
+    const hasta = str(args.hasta_texto)?.trim()
+    if (!id || !desde) throw new ToolError('Faltan id y desde_texto')
+    const ref = await kindOf(id)
+    const doc = ref ? await findAccessibleDoc(userId, ref) : null
+    if (!ref || !doc) throw new ToolError('No encontré una fila, tarjeta ni página con ese id (o no tenés acceso)')
+
+    const blocks = parseDoc(doc.content)
+    const textOf = (b: DocBlock) => norm2(b.type === SUBPAGE_BLOCK ? String(b.props?.title ?? '') : blockText(b))
+    const start = blocks.findIndex((b) => textOf(b).startsWith(norm2(desde)))
+    if (start < 0) {
+      const heads = blocks.filter((b) => b.type === 'heading').map((b) => blockText(b)).filter(Boolean)
+      throw new ToolError(`No encontré un bloque que empiece con "${desde}".${heads.length ? ` Títulos del documento: ${heads.join(' · ')}` : ''}`)
+    }
+    let end = blocks.length
+    if (hasta) {
+      const rel = blocks.slice(start + 1).findIndex((b) => textOf(b).startsWith(norm2(hasta)))
+      if (rel < 0) throw new ToolError(`No encontré, después del comienzo, un bloque que empiece con "${hasta}"`)
+      end = start + 1 + rel
+    }
+    let moved = blocks.slice(start, end)
+    let titulo = str(args.titulo)?.trim().slice(0, 2000)
+    if (moved[0]?.type === 'heading' && (!titulo || norm2(titulo) === textOf(moved[0]))) {
+      titulo = titulo || blockText(moved[0])
+      moved = moved.slice(1) // the heading becomes the page's title
+    }
+    if (!titulo) titulo = blockText(moved[0]) || 'Sin título'
+    const icon = cleanIcon(args.icono) ?? null
+
+    await saveVersionBeforeChange(doc.pageId, userId)
+    const sub = await createSubPage(userId, doc.pageId, ref, { title: titulo, icon, content: serializeDoc(ensureIds(moved)) })
+    const next = [...blocks.slice(0, start), subPageBlock(sub), ...blocks.slice(end)]
+    await writeContent(ref, serializeDoc(ensureIds(next)))
+    return json({
+      creado: 'página interna',
+      id: sub.id,
+      titulo,
+      bloques_movidos: moved.length,
+      dentro_de: doc.title || 'Sin título',
+      enlace: subLink(sub.id),
+      documento: linkOf(ref),
+    })
   }
 
   return async function run(name: string, args: Record<string, unknown>): Promise<ToolResult> {
@@ -608,6 +759,8 @@ export function makeRunner(userId: string, origin: string) {
         return crearDocumento(args)
       case 'actualizar_documento':
         return actualizarDocumento(args)
+      case 'convertir_en_subpagina':
+        return convertirEnSubpagina(args)
       default:
         throw new ToolError(`Herramienta desconocida: ${name}`)
     }

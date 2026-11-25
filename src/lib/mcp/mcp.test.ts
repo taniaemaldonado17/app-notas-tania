@@ -155,3 +155,12 @@ test('bloques propios de Malta se leen como texto', () => {
 test('texto vacío no crea bloques', () => {
   assert.deepEqual(markdownToBlocks('  \n\n'), [])
 })
+
+test('páginas internas: bloque <-> línea de Markdown', () => {
+  const md = 'Intro\n\n📄 [Presupuesto ampliación](subpagina:cmabc123)\n\n[Sin ícono](subpagina:x_1-2)\n\n[normal](https://example.com)'
+  const blocks = markdownToBlocks(md)
+  assert.deepEqual(blocks.map((b) => b.type), ['paragraph', 'subpage', 'subpage', 'paragraph'])
+  assert.deepEqual(blocks[1].props, { subpageId: 'cmabc123', title: 'Presupuesto ampliación', icon: '📄' })
+  assert.deepEqual(blocks[2].props, { subpageId: 'x_1-2', title: 'Sin ícono', icon: '' })
+  assert.equal(blocksToMarkdown(blocks), md)
+})
