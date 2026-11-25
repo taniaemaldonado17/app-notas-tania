@@ -85,3 +85,47 @@ export function blockText(b: DocBlock | undefined): string {
   }
   return walk(b?.content).trim()
 }
+
+/** Level of a heading block (1 if missing), or null for any other block. */
+function headingLevel(b: DocBlock | undefined): number | null {
+  if (!b || b.type !== 'heading') return null
+  const n = Number(b.props?.level)
+  return Number.isFinite(n) && n > 0 ? n : 1
+}
+
+/**
+ * What "Convertir en → Página" takes into the new page, given the block the
+ * menu was opened on, the selected blocks (top level of the selection) and the
+ * blocks at the same level as it (its siblings, in order):
+ * - Several blocks selected: the first one is the title; its nested blocks and
+ *   all the other selected blocks become the page.
+ * - A block with nested blocks: those (as in Notion).
+ * - A heading: everything below it up to the next heading of the same or a
+ *   higher level.
+ * Links to other pages are never moved (they stay where they are).
+ * `taken` are the blocks (besides `block`) to remove from the document.
+ */
+export function pageContentFor(
+  block: DocBlock,
+  selected: DocBlock[],
+  siblings: DocBlock[]
+): { title: DocBlock; content: DocBlock[]; taken: DocBlock[] } {
+  const movable = (b: DocBlock) => b && b.type !== SUBPAGE_BLOCK
+  const kids = (b: DocBlock): DocBlock[] => (Array.isArray(b.children) ? b.children : [])
+  if (selected.length > 1 && selected.some((b) => b.id === block.id) && movable(selected[0])) {
+    const taken = selected.slice(1).filter(movable)
+    return { title: selected[0], content: [...kids(selected[0]), ...taken], taken }
+  }
+  const own = kids(block)
+  if (own.length) return { title: block, content: own, taken: [] }
+  const level = headingLevel(block)
+  if (level === null) return { title: block, content: [], taken: [] }
+  const at = siblings.findIndex((b) => b.id === block.id)
+  const taken: DocBlock[] = []
+  for (const b of at >= 0 ? siblings.slice(at + 1) : []) {
+    const l = headingLevel(b)
+    if ((l !== null && l <= level) || !movable(b)) break
+    taken.push(b)
+  }
+  return { title: block, content: taken, taken }
+}

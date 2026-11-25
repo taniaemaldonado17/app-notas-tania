@@ -13,7 +13,7 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "test:presupuesto": "node --experimental-strip-types --no-warnings --test src/lib/presupuesto/presupuesto.test.ts src/lib/presupuesto/local.test.ts src/lib/presupuesto/formato-app.test.ts src/lib/certificacion/certificacion.test.ts",
-    "test:mcp": "node --experimental-strip-types --no-warnings --test src/lib/mcp/mcp.test.ts"
+    "test:mcp": "node --experimental-strip-types --no-warnings --test src/lib/mcp/mcp.test.ts src/lib/list-glyphs.test.ts"
   },
   "dependencies": {
     "@blocknote/core": "^0.57.0",

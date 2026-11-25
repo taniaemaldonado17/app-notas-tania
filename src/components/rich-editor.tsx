@@ -20,6 +20,7 @@ import { toast } from 'sonner'
 import { decodeText, parseTable } from '@/lib/db-import'
 import { importDocumentWithToast } from '@/lib/import-doc'
 import type { DocBlock } from '@/lib/blocks'
+import { paragraphAsListItem } from '@/lib/list-glyphs'
 import { createSubPage, fetchShare, uploadFile } from '@/lib/api'
 import { EmbedBlock } from '@/components/embed-block'
 import { ImageRowBlock } from '@/components/image-row-block'
@@ -111,6 +112,51 @@ function mentionItems(editor: Editor, people: MentionPerson[]) {
       },
     }
   })
+}
+
+/** Ids of every block in the document (nested ones too). */
+function blockIds(blocks: DocBlock[], out = new Set<string>()): Set<string> {
+  for (const b of blocks) {
+    out.add(b.id)
+    if (Array.isArray(b.children)) blockIds(b.children, out)
+  }
+  return out
+}
+
+/**
+ * Normal paste, then lines that came with their bullet as a character
+ * ("• texto", typical of Word, Outlook or PDFs) become real list items.
+ */
+function pasteWithLists({ editor, defaultPasteHandler }: { editor: BlockNoteEditor<any, any, any>; defaultPasteHandler: () => boolean | undefined }) {
+  const before = blockIds(editor.document as unknown as DocBlock[])
+  // The line where the paste starts gets the first pasted line.
+  try {
+    before.delete(editor.getTextCursorPosition().block.id)
+  } catch {
+    // No cursor (e.g. a whole block selected).
+  }
+  const handled = defaultPasteHandler()
+  try {
+    const fixes: [string, DocBlock][] = []
+    const walk = (list: DocBlock[]) => {
+      for (const b of list) {
+        if (!before.has(b.id)) {
+          const item = paragraphAsListItem(b)
+          if (item) fixes.push([b.id, item])
+        }
+        if (Array.isArray(b.children)) walk(b.children)
+      }
+    }
+    walk(editor.document as unknown as DocBlock[])
+    if (fixes.length) {
+      editor.transact(() => {
+        for (const [id, item] of fixes) editor.updateBlock(id, { type: item.type, content: item.content } as never)
+      })
+    }
+  } catch {
+    // Keep the paste as it came.
+  }
+  return handled
 }
 
 const CSV_MAX_ROWS = 500
@@ -260,6 +306,7 @@ export default function RichEditor({ initialBlocks, onChange, onReady, people, p
     schema,
     dictionary,
     initialContent: initialBlocks.length > 0 ? (initialBlocks as any) : undefined,
+    pasteHandler: pasteWithLists as never,
     uploadFile: async (file: File) => {
       const result = await uploadFile(file)
       return result.url
