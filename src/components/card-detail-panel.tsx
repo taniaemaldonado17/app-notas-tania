@@ -43,6 +43,7 @@ import {
   ImagePlus,
   Palette,
   Smile,
+  FileUp,
 } from 'lucide-react'
 import type { Card } from '@/lib/types'
 import type { BlockNoteEditor } from '@blocknote/core'
@@ -51,6 +52,7 @@ import { parseDoc, serializeDoc } from '@/lib/blocks'
 import * as api from '@/lib/api'
 import { uploadImage } from '@/lib/api'
 import { useDocSync } from '@/hooks/use-doc-sync'
+import { importDocumentWithToast } from '@/lib/import-doc'
 import { formatDateAR, hexToRgba } from '@/lib/utils'
 
 // The editor touches the DOM on load, so it can only render in the browser.
@@ -393,6 +395,13 @@ function PanelBody({
               >
                 <FileDown className="mr-2 h-3.5 w-3.5" />
                 Exportar Markdown
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => void importDocumentWithToast(editorRef.current, 'end')}
+                className="cursor-pointer text-sm"
+              >
+                <FileUp className="mr-2 h-3.5 w-3.5" />
+                Importar documento (.md, Word)
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

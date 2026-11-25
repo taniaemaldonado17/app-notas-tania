@@ -141,6 +141,20 @@ Desde el botón **Compartir** (arriba a la derecha) se crea un enlace de invitac
 - Los favoritos son personales.
 - Los cambios de otras personas aparecen al volver a la pestaña o cada 30 segundos (no es en tiempo real).
 
+## Conectar con Claude
+
+Malta funciona como **conector personalizado** de Claude (servidor MCP en `/api/mcp/<clave>`): Claude puede listar tus páginas, buscar, leer documentos y crear o actualizar filas y tarjetas con contenido en Markdown.
+
+1. En Malta: menú de usuario (arriba a la derecha) → **Conectar con Claude** → **Generar enlace para Claude** y copiá el enlace (se muestra una sola vez).
+2. En claude.ai: **Personalizar → Conectores → + → Agregar conector personalizado**, nombre `Malta`, pegá el enlace como URL y dejá vacíos los campos de OAuth.
+3. En un chat, activá el conector y pedile, por ejemplo: "guardá este presupuesto en el proyecto del predio en Malta".
+
+El enlace funciona como una contraseña. Desde el mismo diálogo se puede generar uno nuevo (anula el anterior) o desconectar. Cada cambio que hace Claude queda en el historial de versiones de la página. Pruebas: `npm run test:mcp`.
+
+## Importar documentos
+
+En cualquier documento (tarjeta o fila), con `/` → **Importar documento**, el botón de importar del panel de una fila o **Más opciones → Importar documento** de una tarjeta, se puede traer un archivo Markdown (`.md`), Word (`.docx`) o HTML conservando títulos, negritas, listas y tablas. Las imágenes de los Word se suben como cualquier imagen.
+
 ## Estructura del proyecto
 
 ```

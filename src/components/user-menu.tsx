@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { signOut, useSession } from 'next-auth/react'
 import {
   Avatar,
@@ -14,15 +15,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { LogOut, Moon, Sun } from 'lucide-react'
+import { LogOut, Moon, PlugZap, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import { borrarDatosOffline } from '@/components/sincronizador-obra'
 import { cantidadPendientes } from '@/lib/presupuesto/offline'
+import { ClaudeConnectDialog } from '@/components/claude-connect-dialog'
 
 export function UserMenu() {
   const { data: session } = useSession()
   const { theme, setTheme } = useTheme()
+  const [claudeOpen, setClaudeOpen] = useState(false)
 
   const name = session?.user?.name ?? session?.user?.email ?? 'Usuario'
   const email = session?.user?.email ?? ''
@@ -110,6 +113,13 @@ export function UserMenu() {
               </>
             )}
           </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => setClaudeOpen(true)}
+            className="cursor-pointer text-sm"
+          >
+            <PlugZap className="mr-2 h-4 w-4" />
+            Conectar con Claude
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={handleLogout}
@@ -120,6 +130,7 @@ export function UserMenu() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <ClaudeConnectDialog open={claudeOpen} onOpenChange={setClaudeOpen} />
     </div>
   )
 }
