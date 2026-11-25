@@ -6,6 +6,7 @@ import { getAuthUserId } from '@/lib/auth-helpers'
 import { findAccessibleRow, rowSelect, sanitizeValues, serializeRow } from '@/lib/db-server'
 import { appOrigin, notifyNewMentions } from '@/lib/mentions'
 import { hashDoc } from '@/lib/doc-merge'
+import { logoUrlFromBody } from '@/lib/doc-logo'
 
 /** Row with its page content and comments (opened in the side panel). */
 export async function GET(
@@ -26,6 +27,7 @@ export async function GET(
     select: {
       ...rowSelect,
       content: true,
+      logoUrl: true,
       database: { select: { pageId: true } },
       comments: {
         orderBy: { createdAt: 'asc' },
@@ -36,11 +38,12 @@ export async function GET(
   if (!row) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
   }
-  const { content, comments, database, ...rest } = row
+  const { content, logoUrl, comments, database, ...rest } = row
   return NextResponse.json({
     row: serializeRow(rest),
     pageId: database.pageId,
     content,
+    logoUrl,
     comments: comments.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() })),
   })
 }
@@ -71,6 +74,8 @@ export async function PATCH(
     if (typeof body.title === 'string') data.title = body.title.slice(0, 2000)
     if (body.icon === null || typeof body.icon === 'string') data.icon = body.icon ? String(body.icon).slice(0, 16) : null
     if (body.content === null || typeof body.content === 'string') data.content = body.content || null
+    const logoUrl = logoUrlFromBody(body.logoUrl)
+    if (logoUrl !== undefined) data.logoUrl = logoUrl
     if (typeof body.position === 'number' && Number.isFinite(body.position)) data.position = body.position
 
     let patch: Record<string, unknown> | null = null

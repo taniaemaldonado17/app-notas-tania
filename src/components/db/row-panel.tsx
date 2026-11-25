@@ -20,6 +20,8 @@ import { importDocumentWithToast } from '@/lib/import-doc'
 import { useOpenSubPages, useSubPages } from '@/lib/subpage-store'
 import { SubPageRootContext } from '@/components/subpage-block'
 import { SubPageView } from '@/components/subpage-view'
+import { DocShareMenu } from '@/components/doc-share-menu'
+import { DocLogo } from '@/components/doc-logo'
 import type { CardComment } from '@/lib/types'
 import type { DatabaseDef, DbRow } from '@/lib/db-types'
 
@@ -79,6 +81,7 @@ export function RowPanel({
 function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: () => void }) {
   const { ws, people } = useDb()
   const [detail, setDetail] = useState<{ content: string | null; blocks: DocBlock[]; comments: CardComment[] } | null>(null)
+  const [logo, setLogo] = useState<string | null>(null)
   const [title, setTitle] = useState(row.title)
   const editorRef = useRef<BlockNoteEditor | null>(null)
   useEffect(() => {
@@ -88,6 +91,7 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
       .then((d) => {
         if (cancelled) return
         setDetail({ content: d.content, blocks: parseDoc(d.content), comments: d.comments })
+        setLogo(d.logoUrl ?? null)
       })
       .catch(() => {
         if (!cancelled) setDetail({ content: null, blocks: [], comments: [] })
@@ -97,6 +101,17 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
     }
   }, [row.id])
 
+
+  async function saveLogo(url: string | null) {
+    const before = logo
+    setLogo(url)
+    try {
+      await api.updateRowLogo(row.id, url)
+    } catch {
+      setLogo(before)
+      toast.error('No se pudo guardar el logo')
+    }
+  }
 
   // Keep the title box in sync when someone else renames the row.
   useEffect(() => {
@@ -117,6 +132,15 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
           </span>
         </div>
         <div className="flex items-center gap-0.5 pr-16">
+          <DocShareMenu
+            docRef={{ kind: 'row', id: row.id }}
+            getDoc={() => ({
+              title,
+              icon: row.icon,
+              logoUrl: logo,
+              blocks: (editorRef.current?.document as DocBlock[] | undefined) ?? detail?.blocks ?? [],
+            })}
+          />
           <Button
             variant="ghost"
             size="sm"
@@ -165,8 +189,9 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
       </div>
 
       <div className="peek-body flex-1 space-y-5 overflow-y-auto px-5 pb-10 pt-6">
-        {/* Icon + title */}
+        {/* Logo + icon + title */}
         <div className="space-y-1">
+          {detail && <DocLogo url={logo} onChange={saveLogo} />}
           <EmojiPicker
             onSelect={(e) => ws.updateRowMeta(row.id, { icon: e })}
             onRemove={row.icon ? () => ws.updateRowMeta(row.id, { icon: null }) : undefined}
@@ -254,6 +279,7 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
               initial={detail.content}
               blocks={detail.blocks}
               people={people}
+              onUseAsLogo={(url) => void saveLogo(url)}
               onEditor={(e) => {
                 editorRef.current = e
               }}
@@ -272,12 +298,14 @@ function RowContentEditor({
   blocks,
   people,
   onEditor,
+  onUseAsLogo,
 }: {
   rowId: string
   initial: string | null
   blocks: DocBlock[]
   people: Person[]
   onEditor?: (editor: BlockNoteEditor | null) => void
+  onUseAsLogo?: (url: string) => void
 }) {
   const sync = useDocSync({
     initial,
@@ -289,6 +317,7 @@ function RowContentEditor({
       initialBlocks={blocks}
       people={people}
       docRef={{ kind: 'row', id: rowId }}
+      onUseAsLogo={onUseAsLogo}
       onChange={sync.onChange}
       onReady={(editor) => {
         sync.onReady(editor)

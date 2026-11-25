@@ -236,6 +236,7 @@ export async function updateCard(
     coverUrl: string | null
     accentColor: string | null
     icon: string | null
+    logoUrl: string | null
     position: number
     columnId: string
   }>
@@ -535,7 +536,7 @@ export async function saveDocContent(
 
 export async function fetchRowDetail(
   rowId: string
-): Promise<{ row: DbRow; pageId: string; content: string | null; comments: CardComment[] }> {
+): Promise<{ row: DbRow; pageId: string; content: string | null; logoUrl: string | null; comments: CardComment[] }> {
   return jsonFetch(`${API_BASE}/rows/${rowId}`)
 }
 
@@ -578,7 +579,7 @@ export async function fetchSubPage(id: string): Promise<import('@/lib/subpages')
   return data.subpage
 }
 
-export async function updateSubPageMeta(id: string, patch: { title?: string; icon?: string | null }): Promise<void> {
+export async function updateSubPageMeta(id: string, patch: { title?: string; icon?: string | null; logoUrl?: string | null }): Promise<void> {
   await jsonFetch(`${API_BASE}/subpages/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
 }
 
@@ -784,4 +785,27 @@ export function urlPdfPresupuesto(id: string) {
 /** Download link in the CyP app's formats. */
 export function urlExportarPresupuesto(id: string, formato: 'xlsx' | 'json') {
   return `${API_BASE}/presupuestos/${id}/exportar?formato=${formato}`
+}
+
+/* ------------------------- Public read-only links ------------------------- */
+
+export type PublicLinkInfo = { token: string; url: string }
+
+export async function fetchPublicLink(ref: import('@/lib/subpages').DocRef): Promise<PublicLinkInfo | null> {
+  const q = new URLSearchParams({ kind: ref.kind, id: ref.id })
+  return (await jsonFetch<{ link: PublicLinkInfo | null }>(`${API_BASE}/public-links?${q}`)).link
+}
+
+export async function createPublicLink(ref: import('@/lib/subpages').DocRef): Promise<PublicLinkInfo> {
+  return (await jsonFetch<{ link: PublicLinkInfo }>(`${API_BASE}/public-links`, { method: 'POST', body: JSON.stringify(ref) })).link
+}
+
+export async function deletePublicLink(ref: import('@/lib/subpages').DocRef): Promise<void> {
+  const q = new URLSearchParams({ kind: ref.kind, id: ref.id })
+  await jsonFetch(`${API_BASE}/public-links?${q}`, { method: 'DELETE' })
+}
+
+/** Sets or removes (null) the logo shown above a row's title. */
+export async function updateRowLogo(rowId: string, logoUrl: string | null): Promise<void> {
+  await jsonFetch(`${API_BASE}/rows/${rowId}`, { method: 'PATCH', body: JSON.stringify({ logoUrl }) })
 }

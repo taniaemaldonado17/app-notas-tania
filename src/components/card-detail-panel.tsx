@@ -31,7 +31,6 @@ import {
   Trash2,
   X,
   ArrowLeft,
-  Share2,
   Star,
   Copy,
   MoreHorizontal,
@@ -56,6 +55,9 @@ import { importDocumentWithToast } from '@/lib/import-doc'
 import { useOpenSubPages, useSubPages } from '@/lib/subpage-store'
 import { SubPageRootContext } from '@/components/subpage-block'
 import { SubPageView } from '@/components/subpage-view'
+import { DocShareMenu } from '@/components/doc-share-menu'
+import { DocLogo } from '@/components/doc-logo'
+import { printDoc } from '@/lib/print-doc'
 import { formatDateAR, hexToRgba } from '@/lib/utils'
 
 // The editor touches the DOM on load, so it can only render in the browser.
@@ -293,8 +295,19 @@ function PanelBody({
     window.location.href = url
   }
 
+  /** The card as a sheet of paper (Descargar PDF). */
+  function cardPaper() {
+    return {
+      title: card.title,
+      icon: card.icon,
+      coverUrl: card.coverUrl,
+      logoUrl: card.logoUrl ?? null,
+      blocks: (editorRef.current?.document as DocBlock[] | undefined) ?? initialBlocks,
+    }
+  }
+
   function handlePrint() {
-    window.print()
+    void printDoc(cardPaper())
   }
 
   const total = card.checklist.length
@@ -326,51 +339,31 @@ function PanelBody({
 
         {/* Right: actions (room on the right for the panel's own buttons) */}
         <div className="flex items-center gap-0.5 pr-16">
-          {/* Compartir */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 gap-1.5 px-2 text-xs"
-                title="Compartir"
-              >
-                <Share2 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Compartir</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem
-                onClick={handleCopyLink}
-                className="cursor-pointer text-sm"
-              >
-                <Link2 className="mr-2 h-3.5 w-3.5" />
-                Copiar enlace
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleExportMarkdown}
-                className="cursor-pointer text-sm"
-              >
-                <FileDown className="mr-2 h-3.5 w-3.5" />
-                Exportar como Markdown
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={handleShareWhatsApp}
-                className="cursor-pointer text-sm"
-              >
-                <MessageCircle className="mr-2 h-3.5 w-3.5" />
-                Enviar por WhatsApp
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={handleShareEmail}
-                className="cursor-pointer text-sm"
-              >
-                <Send className="mr-2 h-3.5 w-3.5" />
-                Enviar por email
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Compartir: PDF, enlace público y exportaciones */}
+          <DocShareMenu
+            docRef={{ kind: 'card', id: card.id }}
+            getDoc={cardPaper}
+            extra={
+              <>
+                <DropdownMenuItem onClick={handleCopyLink} className="cursor-pointer text-sm">
+                  <Link2 className="mr-2 h-3.5 w-3.5" />
+                  Copiar enlace interno
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportMarkdown} className="cursor-pointer text-sm">
+                  <FileDown className="mr-2 h-3.5 w-3.5" />
+                  Exportar como Markdown
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleShareWhatsApp} className="cursor-pointer text-sm">
+                  <MessageCircle className="mr-2 h-3.5 w-3.5" />
+                  Enviar el texto por WhatsApp
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleShareEmail} className="cursor-pointer text-sm">
+                  <Send className="mr-2 h-3.5 w-3.5" />
+                  Enviar por email
+                </DropdownMenuItem>
+              </>
+            }
+          />
 
           {/* Duplicar */}
           <Button
@@ -403,7 +396,7 @@ function PanelBody({
                 className="cursor-pointer text-sm"
               >
                 <Printer className="mr-2 h-3.5 w-3.5" />
-                Imprimir / PDF
+                Descargar PDF
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleExportMarkdown}
@@ -481,6 +474,9 @@ function PanelBody({
         className="peek-body flex flex-1 flex-col gap-4 overflow-y-auto p-5 notion-scroll"
         style={accentStyle}
       >
+        {/* Logo above the title (also at the top of the PDF) */}
+        <DocLogo url={card.logoUrl} onChange={(url) => workspace.updateCard(card.id, { logoUrl: url })} />
+
         {/* Title row: emoji icon + inline editable title */}
         <div className="flex items-start gap-2">
           {card.icon && (
@@ -643,6 +639,7 @@ function PanelBody({
             onChange={sync.onChange}
             pageId={workspace.page?.id}
             docRef={{ kind: 'card', id: card.id }}
+            onUseAsLogo={(url) => void workspace.updateCard(card.id, { logoUrl: url })}
             onReady={(editor) => {
               sync.onReady(editor)
             }}

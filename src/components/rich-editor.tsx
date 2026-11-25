@@ -2,7 +2,7 @@
 
 import { useContext, useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { BlockNoteSchema, defaultBlockSpecs, defaultInlineContentSpecs, filterSuggestionItems, insertOrUpdateBlockForSlashMenu, type BlockNoteEditor } from '@blocknote/core'
+import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu, type BlockNoteEditor } from '@blocknote/core'
 import { es } from '@blocknote/core/locales'
 import {
   FormattingToolbar,
@@ -23,23 +23,17 @@ import type { DocBlock } from '@/lib/blocks'
 import { paragraphAsListItem } from '@/lib/list-glyphs'
 import { cleanWordHtml, isWordHtml, rtfImages } from '@/lib/word-paste'
 import { createSubPage, fetchShare, uploadFile } from '@/lib/api'
-import { EmbedBlock } from '@/components/embed-block'
-import { ImageRowBlock } from '@/components/image-row-block'
-import { Mention } from '@/components/mention-inline'
-import { CalloutBlock } from '@/components/callout-block'
-import { TimelineBlock } from '@/components/timeline-block'
-import { DocRefContext, SubPageBlock, SubPageRootContext } from '@/components/subpage-block'
+import { docSchema } from '@/components/editor-schema'
+import { DocRefContext, SubPageRootContext } from '@/components/subpage-block'
 import { useSubPages } from '@/lib/subpage-store'
 import type { DocRef } from '@/lib/subpages'
 import { EditorPeopleContext } from '@/components/editor-people'
+import { UseAsLogoContext } from '@/components/doc-logo'
 import { BlockHandleMenu, blockTypeItems } from '@/components/block-handle-menu'
 
 export type MentionPerson = { id: string; name: string | null; email: string }
 
-const schema = BlockNoteSchema.create({
-  blockSpecs: { ...defaultBlockSpecs, embed: EmbedBlock(), imageRow: ImageRowBlock(), callout: CalloutBlock(), timeline: TimelineBlock(), subpage: SubPageBlock() },
-  inlineContentSpecs: { ...defaultInlineContentSpecs, mention: Mention },
-})
+const schema = docSchema
 
 type Editor = BlockNoteEditor<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>
 
@@ -73,6 +67,8 @@ type Props = {
   pageId?: string
   /** The document being edited: enables "Página" (pages inside the document). */
   docRef?: DocRef
+  /** Enables "Usar como logo" on images (moves one above the title). */
+  onUseAsLogo?: (url: string) => void
 }
 
 const shareCache = new Map<string, Promise<MentionPerson[]>>()
@@ -341,7 +337,7 @@ function slashItems(editor: Editor, docRef?: DocRef, root: string | null = null)
  *
  * Must be loaded client-side only (see card-detail-panel.tsx).
  */
-export default function RichEditor({ initialBlocks, onChange, onReady, people, pageId, docRef }: Props) {
+export default function RichEditor({ initialBlocks, onChange, onReady, people, pageId, docRef, onUseAsLogo }: Props) {
   const { resolvedTheme } = useTheme()
   const panelRoot = useContext(SubPageRootContext)
   const [loaded, setLoaded] = useState<MentionPerson[]>([])
@@ -411,6 +407,7 @@ export default function RichEditor({ initialBlocks, onChange, onReady, people, p
 
   return (
     <EditorPeopleContext.Provider value={mentionable}>
+    <UseAsLogoContext.Provider value={onUseAsLogo ?? null}>
     <DocRefContext.Provider value={docRef ?? null}>
     <div onKeyDownCapture={onKeyDownCapture} className="contents">
     <BlockNoteView
@@ -442,6 +439,7 @@ export default function RichEditor({ initialBlocks, onChange, onReady, people, p
     </BlockNoteView>
     </div>
     </DocRefContext.Provider>
+    </UseAsLogoContext.Provider>
     </EditorPeopleContext.Provider>
   )
 }

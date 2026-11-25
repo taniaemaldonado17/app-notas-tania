@@ -31,6 +31,8 @@ export type Card = {
   coverUrl: string | null
   accentColor: string | null
   icon: string | null
+  /** Image above the title (e.g. a logo). */
+  logoUrl?: string | null
   favorite?: boolean
   position: number
   columnId: string

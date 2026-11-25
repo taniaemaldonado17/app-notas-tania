@@ -10,7 +10,7 @@ const MAX_DEPTH = 20
 export async function findAccessibleSubPage(userId: string, id: string) {
   return db.subPage.findFirst({
     where: { id, page: accessiblePageWhere(userId) },
-    select: { id: true, pageId: true, title: true, icon: true, content: true, parentRowId: true, parentCardId: true, parentSubPageId: true, updatedAt: true },
+    select: { id: true, pageId: true, title: true, icon: true, logoUrl: true, content: true, parentRowId: true, parentCardId: true, parentSubPageId: true, updatedAt: true },
   })
 }
 
@@ -99,6 +99,7 @@ export async function subPageInfo(sub: SubRecord): Promise<SubPageInfo> {
     pageId: sub.pageId,
     title: sub.title,
     icon: sub.icon,
+    logoUrl: sub.logoUrl,
     content: sub.content,
     parent: parentOf(sub),
     trail: await subPageTrail(sub),

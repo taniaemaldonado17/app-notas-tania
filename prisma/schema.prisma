@@ -69,6 +69,7 @@ model Page {
   versions    PageVersion[]
   presupuestos Presupuesto[]
   subPages    SubPage[]
+  publicLinks PublicLink[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -96,6 +97,8 @@ model Card {
   coverUrl    String?
   accentColor String?
   icon        String?
+  // Image shown above the title (e.g. the studio's logo), also in the PDF.
+  logoUrl     String?
   // Deprecated: see Favorite.
   favorite    Boolean  @default(false)
   favoritedBy Favorite[]
@@ -318,6 +321,8 @@ model DbRow {
   database    Database  @relation(fields: [databaseId], references: [id], onDelete: Cascade)
   title       String    @default("")
   icon        String?
+  // Image shown above the title (e.g. the studio's logo), also in the PDF.
+  logoUrl     String?
   values      Json      @default("{}")
   content     String?
   position    Float     @default(0)
@@ -603,6 +608,8 @@ model SubPage {
   children        SubPage[] @relation("SubPageNesting")
   title           String    @default("")
   icon            String?
+  // Image shown above the title (e.g. the studio's logo), also in the PDF.
+  logoUrl         String?
   // Same format as DbRow.content (see src/lib/blocks.ts)
   content         String?
   createdById     String?
@@ -613,4 +620,21 @@ model SubPage {
   @@index([parentRowId])
   @@index([parentCardId])
   @@index([parentSubPageId])
+}
+
+// Public, read-only link to one document (a database row, a board card or a
+// sub-page), for people without an account: /compartido/<token>. Sub-pages
+// inside the document can be opened too. Deleting the link revokes it.
+model PublicLink {
+  token       String   @id
+  pageId      String
+  page        Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  // 'row' | 'card' | 'subpage'
+  kind        String
+  docId       String
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([docId])
+  @@index([pageId])
 }
