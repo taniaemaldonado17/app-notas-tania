@@ -12,7 +12,14 @@ import {
   usePortalElement,
   type BlockTypeSelectItem,
 } from '@blocknote/react'
-import { Lightbulb } from 'lucide-react'
+import { useContext } from 'react'
+import { FileText, Lightbulb } from 'lucide-react'
+import { toast } from 'sonner'
+import { createSubPage } from '@/lib/api'
+import { serializeDoc, type DocBlock } from '@/lib/blocks'
+import { blockText } from '@/lib/subpages'
+import { useSubPages } from '@/lib/subpage-store'
+import { DocRefContext, SubPageRootContext } from '@/components/subpage-block'
 
 type AnyBlock = { id: string; type: string; props: Record<string, unknown>; content?: unknown; children?: unknown[] }
 
@@ -33,10 +40,36 @@ function targets(editor: Parameters<typeof blockTypeSelectItems>[0], block: AnyB
   return sel && sel.some((b) => b.id === block.id) ? sel : [block]
 }
 
+/**
+ * "Convertir en → Página": the block's text becomes the title of a new page
+ * inside this document and its nested blocks become the page's content.
+ */
+async function turnIntoSubPage(
+  editor: Parameters<typeof blockTypeSelectItems>[0],
+  block: AnyBlock,
+  docRef: NonNullable<React.ContextType<typeof DocRefContext>>,
+  root: string | null
+) {
+  const title = blockText(block as unknown as DocBlock)
+  try {
+    const sub = await createSubPage({
+      parent: docRef,
+      title,
+      content: serializeDoc((block.children ?? []) as DocBlock[]),
+    })
+    editor.replaceBlocks([block.id], [{ type: 'subpage', props: { subpageId: sub.id, title, icon: '' } }] as never)
+    if (root) useSubPages.getState().open(root, { id: sub.id, title, icon: null })
+  } catch {
+    toast.error('No se pudo convertir en página')
+  }
+}
+
 function TurnIntoItem() {
   const Components = useComponentsContext()!
   const editor = useBlockNoteEditor() as never as Parameters<typeof blockTypeSelectItems>[0]
   const portal = usePortalElement()
+  const docRef = useContext(DocRefContext)
+  const root = useContext(SubPageRootContext)
   const block = useExtensionState(SideMenuExtension, { editor, selector: (s) => s?.block }) as AnyBlock | undefined
   // Only text blocks can change type (images, tables… keep theirs).
   const items = blockTypeItems(editor)
@@ -73,6 +106,15 @@ function TurnIntoItem() {
             </Components.Generic.Menu.Item>
           )
         })}
+        {docRef && (
+          <Components.Generic.Menu.Item
+            className="bn-menu-item"
+            icon={<FileText size={16} />}
+            onClick={() => void turnIntoSubPage(editor, block, docRef, root)}
+          >
+            Página
+          </Components.Generic.Menu.Item>
+        )}
       </Components.Generic.Menu.Dropdown>
     </Components.Generic.Menu.Root>
   )

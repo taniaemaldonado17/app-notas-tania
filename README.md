@@ -151,6 +151,16 @@ Malta funciona como **conector personalizado** de Claude (servidor MCP en `/api/
 
 El enlace funciona como una contraseña. Desde el mismo diálogo se puede generar uno nuevo (anula el anterior) o desconectar. Cada cambio que hace Claude queda en el historial de versiones de la página. Pruebas: `npm run test:mcp`.
 
+## Páginas dentro de documentos
+
+Como el bloque **Página** de Notion: dentro del documento de una fila, una tarjeta u otra página, `/` → **Página** crea una página con su propio título, ícono y contenido, que aparece como un renglón para abrirla. También se puede tomar un bloque de texto y hacer **⋮⋮ → Convertir en → Página**: el texto pasa a ser el título y los bloques anidados, el contenido.
+
+- Se abre en el mismo panel, con migas de pan para volver; el botón Atrás del navegador también vuelve.
+- Enlace directo: `/?subpage=<id>` (botón de enlace en la página).
+- Borrar el renglón no borra la página (Ctrl+Z la recupera); borrar la fila o tarjeta sí.
+- Entran en el historial de versiones de la página principal.
+- Claude las ve como `📄 [Título](subpagina:<id>)` y puede crearlas (`crear_documento` con `dentro_de`) o mover una parte de un documento a una página (`convertir_en_subpagina`).
+
 ## Importar documentos
 
 En cualquier documento (tarjeta o fila), con `/` → **Importar documento**, el botón de importar del panel de una fila o **Más opciones → Importar documento** de una tarjeta, se puede traer un archivo Markdown (`.md`), Word (`.docx`) o HTML conservando títulos, negritas, listas y tablas. Las imágenes de los Word se suben como cualquier imagen.

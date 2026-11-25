@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
 import { BlockNoteSchema, defaultBlockSpecs, defaultInlineContentSpecs, filterSuggestionItems, insertOrUpdateBlockForSlashMenu, type BlockNoteEditor } from '@blocknote/core'
 import { es } from '@blocknote/core/locales'
@@ -15,24 +15,27 @@ import {
 } from '@blocknote/react'
 import { BlockNoteView } from '@blocknote/mantine'
 import '@blocknote/mantine/style.css'
-import { CalendarRange, Code2, FileUp, GalleryHorizontal, Lightbulb, Sheet } from 'lucide-react'
+import { CalendarRange, Code2, FileText, FileUp, GalleryHorizontal, Lightbulb, Sheet } from 'lucide-react'
 import { toast } from 'sonner'
 import { decodeText, parseTable } from '@/lib/db-import'
 import { importDocumentWithToast } from '@/lib/import-doc'
 import type { DocBlock } from '@/lib/blocks'
-import { fetchShare, uploadFile } from '@/lib/api'
+import { createSubPage, fetchShare, uploadFile } from '@/lib/api'
 import { EmbedBlock } from '@/components/embed-block'
 import { ImageRowBlock } from '@/components/image-row-block'
 import { Mention } from '@/components/mention-inline'
 import { CalloutBlock } from '@/components/callout-block'
 import { TimelineBlock } from '@/components/timeline-block'
+import { DocRefContext, SubPageBlock, SubPageRootContext } from '@/components/subpage-block'
+import { useSubPages } from '@/lib/subpage-store'
+import type { DocRef } from '@/lib/subpages'
 import { EditorPeopleContext } from '@/components/editor-people'
 import { BlockHandleMenu, blockTypeItems } from '@/components/block-handle-menu'
 
 export type MentionPerson = { id: string; name: string | null; email: string }
 
 const schema = BlockNoteSchema.create({
-  blockSpecs: { ...defaultBlockSpecs, embed: EmbedBlock(), imageRow: ImageRowBlock(), callout: CalloutBlock(), timeline: TimelineBlock() },
+  blockSpecs: { ...defaultBlockSpecs, embed: EmbedBlock(), imageRow: ImageRowBlock(), callout: CalloutBlock(), timeline: TimelineBlock(), subpage: SubPageBlock() },
   inlineContentSpecs: { ...defaultInlineContentSpecs, mention: Mention },
 })
 
@@ -66,6 +69,8 @@ type Props = {
   people?: MentionPerson[]
   /** Alternative to `people`: load the page's owner and members. */
   pageId?: string
+  /** The document being edited: enables "Página" (pages inside the document). */
+  docRef?: DocRef
 }
 
 const shareCache = new Map<string, Promise<MentionPerson[]>>()
@@ -143,9 +148,32 @@ function insertCsvTable(editor: Editor) {
   input.click()
 }
 
+/** "/Página": creates a page inside this document and opens it. */
+async function insertSubPage(editor: Editor, docRef: DocRef, root: string | null) {
+  try {
+    const sub = await createSubPage({ parent: docRef, title: '' })
+    insertOrUpdateBlockForSlashMenu(editor, { type: 'subpage', props: { subpageId: sub.id, title: '', icon: '' } } as never)
+    if (root) useSubPages.getState().open(root, { id: sub.id, title: '', icon: null })
+  } catch {
+    toast.error('No se pudo crear la página')
+  }
+}
+
 /** Default "/" menu plus our blocks; "Imágenes en fila" goes right after "Imagen". */
-function slashItems(editor: Editor) {
+function slashItems(editor: Editor, docRef?: DocRef, root: string | null = null) {
   const items = getDefaultReactSlashMenuItems(editor)
+  if (docRef) {
+    const page = {
+      title: 'Página',
+      subtext: 'Una página dentro de este documento, con su propio contenido',
+      aliases: ['pagina', 'página', 'subpagina', 'subpágina', 'page', 'documento', 'hoja'],
+      group: es.slash_menu.paragraph.group,
+      icon: <FileText size={18} />,
+      onItemClick: () => void insertSubPage(editor, docRef, root),
+    }
+    const pi = items.findIndex((i) => (i as { key?: string }).key === 'paragraph')
+    items.splice(pi >= 0 ? pi + 1 : 0, 0, page)
+  }
   const imageRow = {
     title: 'Imágenes en fila',
     subtext: 'Varias imágenes una al lado de la otra; arrastralas para ordenarlas',
@@ -212,8 +240,9 @@ function slashItems(editor: Editor) {
  *
  * Must be loaded client-side only (see card-detail-panel.tsx).
  */
-export default function RichEditor({ initialBlocks, onChange, onReady, people, pageId }: Props) {
+export default function RichEditor({ initialBlocks, onChange, onReady, people, pageId, docRef }: Props) {
   const { resolvedTheme } = useTheme()
+  const panelRoot = useContext(SubPageRootContext)
   const [loaded, setLoaded] = useState<MentionPerson[]>([])
   useEffect(() => {
     if (people || !pageId) return
@@ -275,6 +304,7 @@ export default function RichEditor({ initialBlocks, onChange, onReady, people, p
 
   return (
     <EditorPeopleContext.Provider value={mentionable}>
+    <DocRefContext.Provider value={docRef ?? null}>
     <div onKeyDownCapture={onKeyDownCapture} className="contents">
     <BlockNoteView
       editor={editor}
@@ -293,7 +323,7 @@ export default function RichEditor({ initialBlocks, onChange, onReady, people, p
         triggerCharacter="/"
         getItems={async (query) =>
           filterSuggestionItems(
-            slashItems(editor),
+            slashItems(editor, docRef, panelRoot),
             query
           )
         }
@@ -304,6 +334,7 @@ export default function RichEditor({ initialBlocks, onChange, onReady, people, p
       />
     </BlockNoteView>
     </div>
+    </DocRefContext.Provider>
     </EditorPeopleContext.Provider>
   )
 }

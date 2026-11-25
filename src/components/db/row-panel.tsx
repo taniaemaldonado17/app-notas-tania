@@ -17,6 +17,9 @@ import { admitePresupuesto, PresupuestoBlock } from '@/components/presupuesto/pr
 import * as api from '@/lib/api'
 import { parseDoc, serializeDoc, type DocBlock } from '@/lib/blocks'
 import { importDocumentWithToast } from '@/lib/import-doc'
+import { useOpenSubPages, useSubPages } from '@/lib/subpage-store'
+import { SubPageRootContext } from '@/components/subpage-block'
+import { SubPageView } from '@/components/subpage-view'
 import type { CardComment } from '@/lib/types'
 import type { DatabaseDef, DbRow } from '@/lib/db-types'
 
@@ -46,10 +49,24 @@ export function RowPanel({
     }
   }
 
+  // Pages inside the row's document open here, in place of the row.
+  const root = rowId ? `row:${rowId}` : ''
+  const subpages = useOpenSubPages(root)
+  const close = () => {
+    useSubPages.getState().reset()
+    onClose()
+  }
+
   return (
-    <ResizableSidePanel open={rowId !== null} onClose={onClose} title={row?.title} className="notion-scroll w-full overflow-y-auto p-0 sm:max-w-none">
+    <ResizableSidePanel open={rowId !== null} onClose={close} title={row?.title} className="notion-scroll w-full overflow-y-auto p-0 sm:max-w-none">
       {db && row ? (
-        <RowBody key={row.id} db={db} row={row} onClose={onClose} />
+        <SubPageRootContext.Provider value={root}>
+          {subpages.length ? (
+            <SubPageView key={subpages[subpages.length - 1].id} crumbs={subpages} rootTitle={row.title} rootIcon={row.icon} />
+          ) : (
+            <RowBody key={row.id} db={db} row={row} onClose={close} />
+          )}
+        </SubPageRootContext.Provider>
       ) : (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
           {rowId ? 'Esta fila ya no existe.' : ''}
@@ -271,6 +288,7 @@ function RowContentEditor({
     <RichEditor
       initialBlocks={blocks}
       people={people}
+      docRef={{ kind: 'row', id: rowId }}
       onChange={sync.onChange}
       onReady={(editor) => {
         sync.onReady(editor)

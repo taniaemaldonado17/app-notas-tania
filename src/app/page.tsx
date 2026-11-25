@@ -18,6 +18,7 @@ import { Inicio } from '@/components/inicio'
 import * as api from '@/lib/api'
 import type { NewPageType, Page, PageSummary } from '@/lib/types'
 import { useWorkspace } from '@/lib/workspace-store'
+import { useSubPages } from '@/lib/subpage-store'
 import { useWorkspacePage } from '@/hooks/use-workspace-page'
 
 const SIDEBAR_KEY = 'notas:sidebarOpen'
@@ -139,6 +140,28 @@ function AppShell() {
             toast.error('No se encontró la fila del enlace')
           }
         }
+
+        // Links to a page inside a document: /?subpage=<id>
+        const subParam = params.get('subpage')
+        if (subParam) {
+          window.history.replaceState({ [HISTORIAL]: 'inicio' }, '', window.location.pathname)
+          try {
+            const sp = await api.fetchSubPage(subParam)
+            const top = sp.trail[0]
+            if (!cancelled && top && top.kind !== 'subpage') {
+              window.history.pushState({ [HISTORIAL]: sp.pageId }, '')
+              setPageId(sp.pageId)
+              useSubPages.getState().setTrail(`${top.kind}:${top.id}`, [
+                ...sp.trail.slice(1).map((t) => ({ id: t.id, title: t.title, icon: t.icon })),
+                { id: sp.id, title: sp.title, icon: sp.icon },
+              ])
+              if (top.kind === 'row') useWorkspace.getState().openRow(top.id)
+              else useWorkspace.getState().openCard(top.id)
+            }
+          } catch {
+            toast.error('No se encontró la página del enlace')
+          }
+        }
       } catch (err) {
         console.error('pages load failed', err)
         toast.error('No se pudieron cargar las páginas')
@@ -161,7 +184,15 @@ function AppShell() {
     window.history.pushState({ [HISTORIAL]: 'inicio' }, '')
     function onPop(e: PopStateEvent) {
       const st = useWorkspace.getState()
+      const sub = useSubPages.getState()
+      if (sub.stack.length && !st.openPresupuestoId && (st.selectedRowId || st.selectedCardId)) {
+        // Inside a page of a document: back to the document.
+        sub.back()
+        window.history.pushState({ [HISTORIAL]: pageIdRef.current ?? 'inicio' }, '')
+        return
+      }
       if (st.openPresupuestoId || st.selectedRowId || st.selectedCardId) {
+        sub.reset()
         st.closePresupuesto()
         st.closeRow()
         st.closeCard()

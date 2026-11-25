@@ -68,6 +68,7 @@ model Page {
   columns     Column[]
   versions    PageVersion[]
   presupuestos Presupuesto[]
+  subPages    SubPage[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -104,6 +105,7 @@ model Card {
   checklist   ChecklistItem[]
   attachments Attachment[]
   comments    Comment[]
+  subPages    SubPage[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -307,6 +309,7 @@ model DbRow {
   createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
   comments    Comment[]
   presupuesto Presupuesto?
+  subPages    SubPage[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -564,4 +567,34 @@ model PageVersion {
   createdAt DateTime @default(now())
 
   @@index([pageId, createdAt])
+}
+
+// A page inside a document, like Notion's "Página" block: its own title, icon
+// and content, shown as a link block in the parent document (a database row,
+// a board card or another sub-page). Access follows the page it belongs to.
+// Removing the link block doesn't delete it (undo brings it back); deleting
+// the parent row/card does.
+model SubPage {
+  id              String    @id @default(cuid())
+  pageId          String
+  page            Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  parentRowId     String?
+  parentRow       DbRow?    @relation(fields: [parentRowId], references: [id], onDelete: Cascade)
+  parentCardId    String?
+  parentCard      Card?     @relation(fields: [parentCardId], references: [id], onDelete: Cascade)
+  parentSubPageId String?
+  parentSubPage   SubPage?  @relation("SubPageNesting", fields: [parentSubPageId], references: [id], onDelete: Cascade)
+  children        SubPage[] @relation("SubPageNesting")
+  title           String    @default("")
+  icon            String?
+  // Same format as DbRow.content (see src/lib/blocks.ts)
+  content         String?
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([pageId])
+  @@index([parentRowId])
+  @@index([parentCardId])
+  @@index([parentSubPageId])
 }

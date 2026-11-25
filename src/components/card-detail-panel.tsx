@@ -53,6 +53,9 @@ import * as api from '@/lib/api'
 import { uploadImage } from '@/lib/api'
 import { useDocSync } from '@/hooks/use-doc-sync'
 import { importDocumentWithToast } from '@/lib/import-doc'
+import { useOpenSubPages, useSubPages } from '@/lib/subpage-store'
+import { SubPageRootContext } from '@/components/subpage-block'
+import { SubPageView } from '@/components/subpage-view'
 import { formatDateAR, hexToRgba } from '@/lib/utils'
 
 // The editor touches the DOM on load, so it can only render in the browser.
@@ -85,16 +88,29 @@ type Props = {
 export function CardDetailPanel({ workspace }: Props) {
   const { selectedCardId, closeCard } = useWorkspace()
   const card = findCard(workspace.page, selectedCardId)
+  // Pages inside the card's document open here, in place of the card.
+  const root = selectedCardId ? `card:${selectedCardId}` : ''
+  const subpages = useOpenSubPages(root)
+  const close = () => {
+    useSubPages.getState().reset()
+    closeCard()
+  }
 
   return (
     <ResizableSidePanel
       open={selectedCardId !== null}
-      onClose={closeCard}
+      onClose={close}
       title={card?.title}
       className="notion-scroll w-full overflow-y-auto p-0 sm:max-w-none"
     >
       {card ? (
-        <PanelBody key={card.id} card={card} workspace={workspace} />
+        <SubPageRootContext.Provider value={root}>
+          {subpages.length ? (
+            <SubPageView key={subpages[subpages.length - 1].id} crumbs={subpages} rootTitle={card.title} rootIcon={card.icon} />
+          ) : (
+            <PanelBody key={card.id} card={card} workspace={workspace} />
+          )}
+        </SubPageRootContext.Provider>
       ) : (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
           Cargando…
@@ -626,6 +642,7 @@ function PanelBody({
             initialBlocks={initialBlocks}
             onChange={sync.onChange}
             pageId={workspace.page?.id}
+            docRef={{ kind: 'card', id: card.id }}
             onReady={(editor) => {
               sync.onReady(editor)
             }}

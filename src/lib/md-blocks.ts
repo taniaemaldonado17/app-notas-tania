@@ -10,6 +10,7 @@
  */
 import { Lexer, type Token, type Tokens } from 'marked'
 import type { DocBlock } from './blocks'
+import { SUBPAGE_BLOCK } from './subpages.ts'
 
 type Styles = { bold?: true; italic?: true; strike?: true; code?: true; underline?: true }
 type InlineText = { type: 'text'; text: string; styles: Styles }
@@ -131,7 +132,13 @@ function toBlocks(tokens: Token[]): DocBlock[] {
       case 'text': {
         const p = t as Tokens.Paragraph
         const parts = (p.tokens ?? []).filter((x) => !(x.type === 'text' && !(x as Tokens.Text).text.trim()))
-        if (parts.length === 1 && parts[0].type === 'image') {
+        const link = parts[parts.length - 1] as Tokens.Link | undefined
+        const sub = link?.type === 'link' ? /^subpagina:([\w-]+)$/.exec(link.href) : null
+        if (sub && parts.length <= 2 && (parts.length === 1 || parts[0].type === 'text')) {
+          // "📄 [Título](subpagina:<id>)": link to a page inside the document.
+          const icon = parts.length === 2 ? decode((parts[0] as Tokens.Text).text).trim().slice(0, 16) : ''
+          out.push(block(SUBPAGE_BLOCK, { props: { subpageId: sub[1], title: decode(link!.text), icon } }))
+        } else if (parts.length === 1 && parts[0].type === 'image') {
           const img = parts[0] as Tokens.Image
           out.push(block('image', { props: { url: img.href, caption: img.text || '' } }))
         } else {
@@ -267,6 +274,8 @@ function blockMd(b: DocBlock, number: number): string[] {
       return p.url ? [`[${p.name || p.caption || p.url}](${p.url})`] : []
     case 'table':
       return tableMd(b.content)
+    case SUBPAGE_BLOCK:
+      return [`${p.icon ? `${p.icon} ` : ''}[${String(p.title || 'Sin título').replace(/[[\]]/g, '')}](subpagina:${p.subpageId})`]
     case 'imageRow':
       return parseJsonList(p.images).map((img) => `![${img.name ?? ''}](${img.url})`)
     case 'embed':

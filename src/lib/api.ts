@@ -485,12 +485,12 @@ export async function fetchCardDescription(cardId: string): Promise<string | nul
  * (`baseHash`). If someone else saved in between, returns their version.
  */
 export async function saveDocContent(
-  kind: 'card' | 'row',
+  kind: 'card' | 'row' | 'subpage',
   id: string,
   content: string | null,
   baseHash: string
 ): Promise<{ ok: true } | { conflict: string | null }> {
-  const url = kind === 'card' ? `${API_BASE}/cards/${id}` : `${API_BASE}/rows/${id}`
+  const url = kind === 'card' ? `${API_BASE}/cards/${id}` : kind === 'row' ? `${API_BASE}/rows/${id}` : `${API_BASE}/subpages/${id}`
   const field = kind === 'card' ? 'description' : 'content'
   const res = await fetch(url, {
     method: 'PATCH',
@@ -529,6 +529,30 @@ export async function getCalendarFeed(): Promise<{ path: string }> {
 /** New secret link; the previous one stops working. */
 export async function resetCalendarFeed(): Promise<{ path: string }> {
   return jsonFetch(`${API_BASE}/calendar`, { method: 'POST' })
+}
+
+/* -------------------------------- Sub-pages -------------------------------- */
+
+export async function createSubPage(input: {
+  parent: import('@/lib/subpages').DocRef
+  title?: string
+  icon?: string | null
+  content?: string | null
+}): Promise<{ id: string; title: string; icon: string | null }> {
+  const data = await jsonFetch<{ subpage: { id: string; title: string; icon: string | null } }>(`${API_BASE}/subpages`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+  return data.subpage
+}
+
+export async function fetchSubPage(id: string): Promise<import('@/lib/subpages').SubPageInfo> {
+  const data = await jsonFetch<{ subpage: import('@/lib/subpages').SubPageInfo }>(`${API_BASE}/subpages/${id}`)
+  return data.subpage
+}
+
+export async function updateSubPageMeta(id: string, patch: { title?: string; icon?: string | null }): Promise<void> {
+  await jsonFetch(`${API_BASE}/subpages/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
 }
 
 /* ---------------------------- Claude connector ---------------------------- */
