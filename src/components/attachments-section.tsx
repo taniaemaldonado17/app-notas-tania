@@ -48,28 +48,26 @@ export function AttachmentsSection({ card, onAdd, onDelete, onUpdate }: Props) {
   const [editDraft, setEditDraft] = useState({ title: '', url: '' })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  async function handlePdfSelected(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
+    if (fileInputRef.current) fileInputRef.current.value = ''
     if (!file) return
-    if (file.type !== 'application/pdf') {
-      toast.error('Solo se permiten archivos PDF')
-      if (fileInputRef.current) fileInputRef.current.value = ''
-      return
-    }
     setUploading(true)
+    const toastId = file.size > 3 * 1024 * 1024 ? toast.loading(`Subiendo ${file.name}…`) : undefined
     try {
-      const result = await uploadFile(file)
+      const result = await uploadFile(file, (f) => {
+        if (toastId !== undefined) toast.loading(`Subiendo ${file.name}… ${Math.round(f * 100)}%`, { id: toastId })
+      })
       await onAdd({
-        type: 'pdf',
-        title: result.originalName,
+        type: result.type === 'pdf' ? 'pdf' : 'file',
+        title: result.originalName || file.name,
         url: result.url,
       })
-      toast.success('PDF adjuntado')
+      toast.success('Archivo adjuntado', { id: toastId })
     } catch (err) {
-      toast.error('No se pudo subir el PDF')
+      toast.error(err instanceof Error && !/^Error \d+$/.test(err.message) ? err.message : 'No se pudo subir el archivo', { id: toastId })
     } finally {
       setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -265,8 +263,7 @@ export function AttachmentsSection({ card, onAdd, onDelete, onUpdate }: Props) {
           <input
             ref={fileInputRef}
             type="file"
-            accept="application/pdf,.pdf"
-            onChange={handlePdfSelected}
+            onChange={handleFileSelected}
             className="hidden"
           />
           <Button
@@ -282,7 +279,7 @@ export function AttachmentsSection({ card, onAdd, onDelete, onUpdate }: Props) {
             ) : (
               <FileText className="h-3 w-3" />
             )}
-            PDF
+            Archivo
           </Button>
           <Button
             type="button"

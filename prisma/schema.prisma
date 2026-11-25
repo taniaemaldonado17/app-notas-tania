@@ -197,16 +197,32 @@ model Comment {
 // Uploaded files (images, PDFs). Stored in the database because the
 // hosting filesystem is not persistent. Served by /api/files/[id].
 model Upload {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   name      String
   mimeType  String
   size      Int
+  /// Whole file for small uploads; empty when it came in parts (UploadPart).
   data      Bytes
+  /// Number of parts (0 = the file is in `data`).
+  parts     Int          @default(0)
+  /// False while a file in parts is still arriving.
+  complete  Boolean      @default(true)
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+  pieces    UploadPart[]
 
   @@index([userId])
+}
+
+/// A piece of a big upload: Vercel only accepts ~4.5 MB per request.
+model UploadPart {
+  uploadId String
+  upload   Upload @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  index    Int
+  data     Bytes
+
+  @@id([uploadId, index])
 }
 
 // A user (other than the owner) who can view and edit a shared page.

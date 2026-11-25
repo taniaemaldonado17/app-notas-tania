@@ -465,10 +465,6 @@ function UrlEditor({ initial, onCommit }: { initial: string; onCommit: (v: strin
   )
 
   async function upload(file: File) {
-    if (file.size > 4 * 1024 * 1024) {
-      toast.error('El archivo supera los 4 MB')
-      return
-    }
     setUploading(true)
     try {
       const res = await api.uploadFile(file)
@@ -523,8 +519,7 @@ function UrlEditor({ initial, onCommit }: { initial: string; onCommit: (v: strin
         <input
           ref={fileRef}
           type="file"
-          accept="image/*,application/pdf"
-          className="hidden"
+                    className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0]
             e.target.value = ''
@@ -538,7 +533,7 @@ function UrlEditor({ initial, onCommit }: { initial: string; onCommit: (v: strin
           className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-60"
         >
           {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 text-muted-foreground" />}
-          {uploading ? 'Subiendo…' : 'Subir imagen o archivo (máx. 4 MB)'}
+          {uploading ? 'Subiendo…' : 'Subir imagen o archivo (máx. 50 MB)'}
         </button>
       </div>
     </div>

@@ -301,24 +301,51 @@ export async function deleteChecklistItem(itemId: string): Promise<void> {
 /* ----------------------------- Upload ----------------------------- */
 
 export async function uploadImage(file: File): Promise<string> {
-  const formData = new FormData()
-  formData.append('file', file)
-  const data = await jsonFetch<{ url: string }>(`${API_BASE}/upload`, {
-    method: 'POST',
-    body: formData,
-  })
-  return data.url
+  return (await uploadFile(file)).url
 }
 
-export async function uploadFile(
-  file: File
-): Promise<{ url: string; type: 'image' | 'pdf'; originalName: string }> {
-  const formData = new FormData()
-  formData.append('file', file)
-  return jsonFetch(`${API_BASE}/upload`, {
+export type UploadResult = { url: string; type: 'image' | 'pdf' | 'file'; originalName: string }
+
+/**
+ * Uploads any file (up to MAX_UPLOAD_BYTES). Small files go in one request;
+ * bigger ones in parts, because Vercel only accepts ~4.5 MB per request.
+ */
+export async function uploadFile(file: File, onProgress?: (fraction: number) => void): Promise<UploadResult> {
+  const { MAX_UPLOAD_BYTES, PART_BYTES, tooBigMessage } = await import('@/lib/upload-limits')
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error(tooBigMessage())
+  if (file.size <= PART_BYTES) {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await jsonFetch<UploadResult>(`${API_BASE}/upload`, { method: 'POST', body: formData })
+    onProgress?.(1)
+    return res
+  }
+  const start = await jsonFetch<{ id: string; parts: number; partBytes: number }>(`${API_BASE}/upload`, {
     method: 'POST',
-    body: formData,
+    body: JSON.stringify({ name: file.name, type: file.type, size: file.size }),
   })
+  let result: (UploadResult & { done?: boolean }) | null = null
+  for (let i = 0; i < start.parts; i++) {
+    const piece = file.slice(i * start.partBytes, (i + 1) * start.partBytes)
+    let lastError: unknown
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        result = await jsonFetch<UploadResult & { done?: boolean }>(`${API_BASE}/upload/${start.id}?part=${i}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: piece,
+        })
+        lastError = null
+        break
+      } catch (err) {
+        lastError = err
+      }
+    }
+    if (lastError) throw lastError
+    onProgress?.((i + 1) / start.parts)
+  }
+  if (!result?.done) throw new Error('No se pudo terminar de subir el archivo')
+  return { url: result.url, type: result.type, originalName: result.originalName }
 }
 
 /* ----------------------------- Attachments ----------------------------- */

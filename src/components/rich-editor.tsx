@@ -359,8 +359,13 @@ export default function RichEditor({ initialBlocks, onChange, onReady, people, p
     initialContent: initialBlocks.length > 0 ? (initialBlocks as any) : undefined,
     pasteHandler: pasteWithLists as never,
     uploadFile: async (file: File) => {
-      const result = await uploadFile(file)
-      return result.url
+      try {
+        const result = await uploadFile(file)
+        return result.url
+      } catch (err) {
+        toast.error(err instanceof Error && !/^Error \d+$/.test(err.message) ? err.message : 'No se pudo subir el archivo')
+        throw err
+      }
     },
   })
 
