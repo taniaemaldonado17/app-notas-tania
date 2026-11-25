@@ -5,9 +5,11 @@ import { useTheme } from 'next-themes'
 import { filterSuggestionItems, insertOrUpdateBlockForSlashMenu, type BlockNoteEditor } from '@blocknote/core'
 import { es } from '@blocknote/core/locales'
 import {
+  BasicTextStyleButton,
   FormattingToolbar,
   FormattingToolbarController,
   getDefaultReactSlashMenuItems,
+  getFormattingToolbarItems,
   SideMenu,
   SideMenuController,
   SuggestionMenuController,
@@ -330,6 +332,13 @@ function slashItems(editor: Editor, docRef?: DocRef, root: string | null = null)
   ]
 }
 
+/** Default toolbar plus Notion's inline-code button (</>) right after strikethrough. */
+function withCodeButton(items: React.ReactElement[]) {
+  const i = items.findIndex((item) => item.key === 'strikeStyleButton')
+  const code = <BasicTextStyleButton key="codeStyleButton" basicTextStyle="code" />
+  return i === -1 ? [...items, code] : [...items.slice(0, i + 1), code, ...items.slice(i + 1)]
+}
+
 /**
  * Rich block editor for card content: inline formatting, links, colours,
  * toggle lists, nested blocks, to-dos, code, tables and images.
@@ -421,7 +430,11 @@ export default function RichEditor({ initialBlocks, onChange, onReady, people, p
     >
       <SideMenuController sideMenu={() => <SideMenu dragHandleMenu={BlockHandleMenu} />} />
       <FormattingToolbarController
-        formattingToolbar={() => <FormattingToolbar blockTypeSelectItems={blockTypeItems(editor as never)} />}
+        formattingToolbar={() => (
+          <FormattingToolbar>
+            {withCodeButton(getFormattingToolbarItems(blockTypeItems(editor as never)))}
+          </FormattingToolbar>
+        )}
       />
       <SuggestionMenuController
         triggerCharacter="/"
