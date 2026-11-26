@@ -10,7 +10,8 @@ import { resolveValue } from '@/lib/db-resolve'
 import { findOption, getProperty, todayISO, type DatabaseDef, type DbRow, type PropertyDef, type RowValue, type ViewDef } from '@/lib/db-types'
 import { cn } from '@/lib/utils'
 
-/* Apple Calendar–style month and week views (weeks start on Monday). */
+/* Month and week calendar views (weeks start on Monday), with solid
+   Google Calendar–style event cards. */
 
 const WEEKDAYS = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom']
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
@@ -95,39 +96,38 @@ export function CalendarView({
     setAnchor((a) => (mode === 'month' ? new Date(a.getFullYear(), a.getMonth() + dir, 1) : addDays(a, 7 * dir)))
   }
 
-  const eventPill = (r: DbRow, big = false) => (
-    <button
-      key={r.id}
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation()
-        openRow(r.id)
-      }}
-      data-opt-color={colorOf(r)}
-      className={cn(
-        'apple-event flex w-full min-w-0 items-start gap-1.5 rounded-md text-left transition hover:brightness-110',
-        big ? 'px-2 py-1.5 text-xs' : 'px-1.5 py-[3px] text-[11px] leading-tight'
-      )}
-      title={r.title || 'Sin título'}
-    >
-      <span className="mt-[2px] h-[calc(100%-4px)] min-h-3 w-[3px] shrink-0 self-stretch rounded-full bg-current opacity-90" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium">
+  // Google Calendar–style cards: solid colour, white text. Month view shows the
+  // title plus one detail; week view the title plus up to three. Text wraps
+  // onto the next line instead of being cut off.
+  const eventPill = (r: DbRow, big = false) => {
+    const details = props.filter((p) => p.id !== colorProp?.id && hasDisplayValue(r, p)).slice(0, big ? 3 : 1)
+    return (
+      <button
+        key={r.id}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          openRow(r.id)
+        }}
+        data-evt-color={colorOf(r)}
+        className={cn(
+          'cal-card flex w-full min-w-0 flex-col rounded-md text-left shadow-sm transition hover:shadow-md hover:brightness-[1.06]',
+          big ? 'min-h-[56px] gap-1 px-2 py-1.5 text-[13px] leading-snug' : 'gap-0.5 px-2 py-1 text-xs leading-snug'
+        )}
+        title={r.title || 'Sin título'}
+      >
+        <span className="block w-full whitespace-normal break-words font-semibold">
           {r.icon ? `${r.icon} ` : ''}
           {r.title || 'Sin título'}
         </span>
-        {big &&
-          props
-            .filter((p) => p.id !== colorProp?.id && hasDisplayValue(r, p))
-            .slice(0, 2)
-            .map((p) => (
-              <span key={p.id} className="mt-1 flex min-w-0 text-foreground/80">
-                <PropertyDisplay db={db} row={r} prop={p} />
-              </span>
-            ))}
-      </span>
-    </button>
-  )
+        {details.map((p) => (
+          <span key={p.id} className={cn('flex w-full min-w-0 flex-wrap break-words', big ? 'text-xs' : 'text-[11px]')}>
+            <PropertyDisplay db={db} row={r} prop={p} />
+          </span>
+        ))}
+      </button>
+    )
+  }
 
   return (
     <div className="apple-calendar">
@@ -222,7 +222,7 @@ export function CalendarView({
                   className={cn(
                     'group relative flex flex-col gap-0.5 border-b border-border p-1',
                     i % 7 !== 0 && 'border-l',
-                    mode === 'week' ? 'min-h-[420px] pt-2' : 'min-h-[112px]',
+                    mode === 'week' ? 'min-h-[420px] pt-2' : 'min-h-[120px]',
                     weekend && 'bg-foreground/[0.025] dark:bg-white/[0.035]'
                   )}
                 >
@@ -252,7 +252,7 @@ export function CalendarView({
                       </span>
                     </div>
                   )}
-                  <div className={cn('flex min-w-0 flex-col', mode === 'week' ? 'gap-1' : 'gap-[3px]', !inMonth && 'opacity-60')}>
+                  <div className={cn('flex min-w-0 flex-col', mode === 'week' ? 'gap-1.5' : 'gap-1', !inMonth && 'opacity-60')}>
                     {shown.map((r) => eventPill(r, mode === 'week'))}
                     {items.length > shown.length && (
                       <button
