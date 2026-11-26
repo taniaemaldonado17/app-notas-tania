@@ -1053,3 +1053,34 @@ body.row-dragging, body.row-dragging * { cursor: grabbing !important; user-selec
   .doc-paper [data-content-type="heading"] { break-after: avoid; }
   .doc-paper .subpage-link:hover { background: none; }
 }
+
+/* ---------- Calendar event cards (solid, Google Calendar–style) ---------- */
+:root {
+  --evt-default: #7986cb;
+  --evt-gray: #616161;
+  --evt-brown: #8d6e63;
+  --evt-orange: #f4511e;
+  --evt-yellow: #f6bf26;
+  --evt-green: #33b679;
+  --evt-blue: #039be5;
+  --evt-purple: #8e24aa;
+  --evt-pink: #e67c73;
+  --evt-red: #d50000;
+}
+.cal-card { background: var(--evt-default); color: #ffffff; }
+.cal-card[data-evt-color="gray"] { background: var(--evt-gray); }
+.cal-card[data-evt-color="brown"] { background: var(--evt-brown); }
+.cal-card[data-evt-color="orange"] { background: var(--evt-orange); }
+.cal-card[data-evt-color="yellow"] { background: var(--evt-yellow); color: #3d2e00; }
+.cal-card[data-evt-color="green"] { background: var(--evt-green); }
+.cal-card[data-evt-color="blue"] { background: var(--evt-blue); }
+.cal-card[data-evt-color="purple"] { background: var(--evt-purple); }
+.cal-card[data-evt-color="pink"] { background: var(--evt-pink); }
+.cal-card[data-evt-color="red"] { background: var(--evt-red); }
+/* Details inside a card follow the card's text colour instead of the page's. */
+.cal-card .text-muted-foreground,
+.cal-card .text-foreground,
+.cal-card .text-destructive { color: inherit; opacity: 0.9; }
+.cal-card [data-opt-color] { background: rgb(255 255 255 / 0.25); color: inherit; }
+.cal-card[data-evt-color="yellow"] [data-opt-color] { background: rgb(0 0 0 / 0.1); }
+.cal-card a { text-decoration-color: currentColor; }
