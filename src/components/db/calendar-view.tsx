@@ -99,7 +99,7 @@ export function CalendarView({
   // Google Calendar–style cards: solid colour, white text. Month view shows the
   // title plus one detail line; week view shows the title plus up to three.
   const eventPill = (r: DbRow, big = false) => {
-    const details = props.filter((p) => p.id !== colorProp?.id && hasDisplayValue(r, p)).slice(0, big ? 3 : 1)
+    const details = props.filter((p) => p.id !== colorProp?.id && hasDisplayValue(r, p)).slice(0, big ? 4 : 1)
     return (
       <button
         key={r.id}
@@ -111,16 +111,16 @@ export function CalendarView({
         data-evt-color={colorOf(r)}
         className={cn(
           'cal-card flex w-full min-w-0 flex-col rounded-md text-left shadow-sm transition hover:shadow-md hover:brightness-[1.06]',
-          big ? 'min-h-[64px] gap-1 px-2.5 py-2 text-[13px]' : 'gap-0.5 px-2 py-1 text-xs leading-snug'
+          big ? 'min-h-[96px] gap-1.5 rounded-lg px-3 py-2.5 text-sm leading-snug' : 'min-h-[40px] gap-0.5 px-2.5 py-1.5 text-[13px] leading-snug'
         )}
         title={r.title || 'Sin título'}
       >
-        <span className={cn('block w-full font-semibold', big ? 'line-clamp-2 break-words' : 'truncate')}>
+        <span className={cn('block w-full font-semibold', big ? 'line-clamp-3 break-words' : 'truncate')}>
           {r.icon ? `${r.icon} ` : ''}
           {r.title || 'Sin título'}
         </span>
         {details.map((p) => (
-          <span key={p.id} className={cn('flex w-full min-w-0 overflow-hidden', big ? 'text-xs' : 'text-[11px]')}>
+          <span key={p.id} className={cn('flex w-full min-w-0 overflow-hidden', big ? 'text-[13px]' : 'text-xs')}>
             <PropertyDisplay db={db} row={r} prop={p} />
           </span>
         ))}
@@ -177,7 +177,7 @@ export function CalendarView({
       </div>
 
       <div className="notion-scroll overflow-x-auto">
-        <div className="min-w-[640px]">
+        <div className="min-w-[760px]">
           {/* Weekday header */}
           <div className="grid grid-cols-7 border-b border-border">
             {WEEKDAYS.map((w, i) => {
@@ -221,7 +221,7 @@ export function CalendarView({
                   className={cn(
                     'group relative flex flex-col gap-0.5 border-b border-border p-1',
                     i % 7 !== 0 && 'border-l',
-                    mode === 'week' ? 'min-h-[460px] pt-2' : 'min-h-[132px]',
+                    mode === 'week' ? 'min-h-[560px] px-1.5 pt-2' : 'min-h-[168px]',
                     weekend && 'bg-foreground/[0.025] dark:bg-white/[0.035]'
                   )}
                 >
@@ -251,7 +251,7 @@ export function CalendarView({
                       </span>
                     </div>
                   )}
-                  <div className={cn('flex min-w-0 flex-col', mode === 'week' ? 'gap-1.5' : 'gap-1', !inMonth && 'opacity-60')}>
+                  <div className={cn('flex min-w-0 flex-col', mode === 'week' ? 'gap-2' : 'gap-1.5', !inMonth && 'opacity-60')}>
                     {shown.map((r) => eventPill(r, mode === 'week'))}
                     {items.length > shown.length && (
                       <button
