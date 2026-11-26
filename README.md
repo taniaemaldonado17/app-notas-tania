@@ -151,6 +151,8 @@ Malta funciona como **conector personalizado** de Claude (servidor MCP en `/api/
 
 Para cambios chicos Claude usa `editar_bloques` (reemplaza, inserta o borra un párrafo puntual) y `reemplazar_texto` (cambia palabras exactas): el resto del documento queda igual, con su formato.
 
+Claude también puede armar la estructura de una página de bases de datos: `ver_estructura`, `crear_base` (con relaciones), `agregar_propiedad`, `crear_vista` (filtros con fechas relativas como "hoy+7") y `agregar_al_tablero` (vistas, títulos, botones de acción rápida con plantilla de contenido e indicadores en la pantalla principal).
+
 El enlace funciona como una contraseña. Desde el mismo diálogo se puede generar uno nuevo (anula el anterior) o desconectar. Cada cambio que hace Claude queda en el historial de versiones de la página. Pruebas: `npm run test:mcp`.
 
 ## Páginas dentro de documentos

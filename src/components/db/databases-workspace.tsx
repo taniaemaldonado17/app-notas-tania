@@ -47,6 +47,7 @@ import {
   formatNumber,
   getProperty,
   newId,
+  quickActionValues,
   OPTION_COLORS,
   type DatabaseDef,
   type LayoutSection,
@@ -582,7 +583,10 @@ function ActionsSection({
           <button
             type="button"
             onClick={async () => {
-              const row = await ws.createRow(a.databaseId, { values: a.values })
+              const row = await ws.createRow(a.databaseId, {
+                values: quickActionValues(a, databases.find((d) => d.id === a.databaseId)),
+                ...(a.content ? { content: a.content } : {}),
+              })
               if (row) openRow(row.id)
             }}
             className="flex h-8 items-center gap-1.5 rounded-l-md px-2.5 text-sm hover:bg-accent"
@@ -672,6 +676,14 @@ function ActionEditor({
           </select>
         </label>
       ))}
+      {action.content && (
+        <p className="flex items-center gap-2 border-t border-border pt-2 text-xs text-muted-foreground">
+          Crea la página con una plantilla de contenido
+          <button type="button" onClick={() => onChange({ ...action, content: null })} className="ml-auto rounded px-1.5 py-0.5 hover:bg-accent hover:text-foreground">
+            Quitar plantilla
+          </button>
+        </p>
+      )}
       <button type="button" onClick={onRemove} className="flex items-center gap-1.5 rounded px-1.5 py-1 text-xs text-destructive hover:bg-accent">
         <Trash2 className="h-3.5 w-3.5" />
         Quitar acción

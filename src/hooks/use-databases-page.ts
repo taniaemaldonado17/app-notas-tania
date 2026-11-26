@@ -249,7 +249,7 @@ export function useDatabasesPage(pageId: string | null) {
   /* -------------------------------- Rows -------------------------------- */
 
   const createRow = useCallback(
-    async (databaseId: string, init: { title?: string; values?: Record<string, RowValue> } = {}): Promise<DbRow | null> => {
+    async (databaseId: string, init: { title?: string; values?: Record<string, RowValue>; content?: string | null } = {}): Promise<DbRow | null> => {
       try {
         const row = await track(api.createRow(databaseId, init))
         mapDatabases((dbs) => dbs.map((d) => (d.id === databaseId ? { ...d, rows: [...d.rows, row] } : d)))
