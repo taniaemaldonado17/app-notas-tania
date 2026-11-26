@@ -1084,3 +1084,6 @@ body.row-dragging, body.row-dragging * { cursor: grabbing !important; user-selec
 .cal-card [data-opt-color] { background: rgb(255 255 255 / 0.25); color: inherit; }
 .cal-card[data-evt-color="yellow"] [data-opt-color] { background: rgb(0 0 0 / 0.1); }
 .cal-card a { text-decoration-color: currentColor; }
+/* Let long text inside a card wrap onto the next line instead of being cut. */
+.cal-card .truncate { overflow: visible; white-space: normal; text-overflow: clip; overflow-wrap: anywhere; }
+.cal-card .overflow-hidden { overflow: visible; flex-wrap: wrap; }

@@ -97,7 +97,8 @@ export function CalendarView({
   }
 
   // Google Calendar–style cards: solid colour, white text. Month view shows the
-  // title plus one detail line; week view shows the title plus up to three.
+  // title plus one detail; week view the title plus up to four. Text wraps
+  // onto the next line instead of being cut off.
   const eventPill = (r: DbRow, big = false) => {
     const details = props.filter((p) => p.id !== colorProp?.id && hasDisplayValue(r, p)).slice(0, big ? 4 : 1)
     return (
@@ -115,12 +116,12 @@ export function CalendarView({
         )}
         title={r.title || 'Sin título'}
       >
-        <span className={cn('block w-full font-semibold', big ? 'line-clamp-3 break-words' : 'truncate')}>
+        <span className="block w-full whitespace-normal break-words font-semibold">
           {r.icon ? `${r.icon} ` : ''}
           {r.title || 'Sin título'}
         </span>
         {details.map((p) => (
-          <span key={p.id} className={cn('flex w-full min-w-0 overflow-hidden', big ? 'text-[13px]' : 'text-xs')}>
+          <span key={p.id} className={cn('flex w-full min-w-0 flex-wrap break-words', big ? 'text-[13px]' : 'text-xs')}>
             <PropertyDisplay db={db} row={r} prop={p} />
           </span>
         ))}
