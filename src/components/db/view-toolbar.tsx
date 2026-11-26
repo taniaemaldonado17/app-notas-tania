@@ -14,6 +14,8 @@ import {
   getProperty,
   makeView,
   newId,
+  describeDateToken,
+  relativeDays,
   VIEW_TYPE_LABELS,
   type DatabaseDef,
   type Filter,
@@ -159,18 +161,44 @@ function FilterValueInput({
     )
   }
   if (prop.type === 'date' || prop.type === 'created_time' || prop.type === 'updated_time') {
+    // "hoy", "dentro de N días" (today+N), "hace N días" (today-N) or an exact date.
+    const days = relativeDays(value)
+    const mode = days === null ? 'exact' : days === 0 ? 'today' : days > 0 ? 'future' : 'past'
+    const n = days === null ? 7 : Math.abs(days) || 7
     return (
       <span className="flex min-w-0 flex-1 items-center gap-1">
         <select
-          value={value === 'today' ? 'today' : 'exact'}
-          onChange={(e) => onChange(e.target.value === 'today' ? 'today' : null)}
+          value={mode}
+          onChange={(e) => {
+            const m = e.target.value
+            onChange(m === 'today' ? 'today' : m === 'future' ? `today+${n}` : m === 'past' ? `today-${n}` : null)
+          }}
           className="rounded bg-muted/60 px-1 py-1 text-xs outline-none"
           aria-label="Tipo de fecha"
         >
           <option value="today">hoy</option>
+          <option value="future">dentro de…</option>
+          <option value="past">hace…</option>
           <option value="exact">fecha exacta</option>
         </select>
-        {value !== 'today' && (
+        {(mode === 'future' || mode === 'past') && (
+          <>
+            <input
+              type="number"
+              min={1}
+              max={3650}
+              value={n}
+              onChange={(e) => {
+                const k = Math.max(1, Math.min(3650, Math.trunc(Number(e.target.value)) || 1))
+                onChange(`today${mode === 'future' ? '+' : '-'}${k}`)
+              }}
+              className={`${cls} w-14 min-w-0 flex-none`}
+              aria-label="Días"
+            />
+            <span className="text-xs text-muted-foreground">días</span>
+          </>
+        )}
+        {mode === 'exact' && (
           <input type="date" value={typeof value === 'string' ? value : ''} onChange={(e) => onChange(e.target.value || null)} className={cls} />
         )}
       </span>
@@ -553,7 +581,14 @@ export function FilterSummary({ db, filters }: { db: DatabaseDef; filters: Filte
         const option = prop?.options?.find((o) => o.id === f.value)
         return (
           <span key={f.id} className="inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-px">
-            {prop?.name} {op?.label} {option ? <OptionChip option={option} className="py-0 text-[10px] leading-4" /> : op?.needsValue ? String(f.value ?? '') : ''}
+            {prop?.name} {op?.label}{' '}
+            {option ? (
+              <OptionChip option={option} className="py-0 text-[10px] leading-4" />
+            ) : op?.needsValue ? (
+              prop && (prop.type === 'date' || prop.type === 'created_time' || prop.type === 'updated_time') ? describeDateToken(f.value) : String(f.value ?? '')
+            ) : (
+              ''
+            )}
           </span>
         )
       })}

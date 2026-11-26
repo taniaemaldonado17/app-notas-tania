@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { getAuthUserId } from '@/lib/auth-helpers'
 import { findAccessibleDatabase, rowSelect, sanitizeValues, serializeRow } from '@/lib/db-server'
 
-/** Create a row. Body: { title?, icon?, values?, position? } */
+/** Create a row. Body: { title?, icon?, values?, position?, content? } (content: initial page, e.g. from a template) */
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -40,6 +40,7 @@ export async function POST(
         values,
         position,
         createdById: userId,
+        content: typeof body?.content === 'string' && body.content && body.content.length <= 1_000_000 ? body.content : null,
       },
       select: rowSelect,
     })

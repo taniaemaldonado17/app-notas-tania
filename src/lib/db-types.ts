@@ -172,7 +172,7 @@ export type Filter = {
   id: string
   propertyId: string
   op: FilterOp
-  /** string | number | option id | date 'YYYY-MM-DD' | 'today' */
+  /** string | number | option id | date 'YYYY-MM-DD' | 'today' | 'today+7' | 'today-3' */
   value?: string | number | null
 }
 
@@ -249,8 +249,20 @@ export type QuickAction = {
   id: string
   label: string
   databaseId: string
-  /** Values set on the new row, e.g. { tipo: 'opt_plano' } */
+  /** Values set on the new row, e.g. { tipo: 'opt_plano' }. Dates may be relative ('today', 'today+7'). */
   values: Record<string, RowValue>
+  /** Template: initial content of the new row's page (same format as a row's content). */
+  content?: string | null
+}
+
+/** A quick action's values for a new row, with relative dates turned into dates. */
+export function quickActionValues(action: QuickAction, db: Pick<DatabaseDef, 'properties'> | undefined): Record<string, RowValue> {
+  const out: Record<string, RowValue> = {}
+  for (const [k, v] of Object.entries(action.values ?? {})) {
+    const prop = db?.properties.find((p) => p.id === k)
+    out[k] = prop?.type === 'date' && isRelativeDate(v) ? resolveDateToken(v) : v
+  }
+  return out
 }
 
 export type LayoutSection =
@@ -482,9 +494,40 @@ function isEmptyValue(v: ResolvedValue): boolean {
   return false
 }
 
-function resolveDateToken(v: unknown): string {
-  if (v === 'today') return todayISO()
+/** 'today', 'today+7', 'today-3' (days from today), as filters and quick actions use them. */
+const RELATIVE_DATE = /^today(?:([+-])(\d{1,4}))?$/
+
+export function isRelativeDate(v: unknown): v is string {
+  return typeof v === 'string' && RELATIVE_DATE.test(v)
+}
+
+/** Days from today of a relative date ('today+7' → 7), or null for an exact date. */
+export function relativeDays(v: unknown): number | null {
+  const m = typeof v === 'string' ? RELATIVE_DATE.exec(v) : null
+  if (!m) return null
+  return m[1] ? (m[1] === '-' ? -1 : 1) * Number(m[2]) : 0
+}
+
+/** 'YYYY-MM-DD' of a filter value: an exact date or a relative one ('today+7'). */
+export function resolveDateToken(v: unknown): string {
+  const days = relativeDays(v)
+  if (days !== null) {
+    if (days === 0) return todayISO()
+    const d = new Date()
+    d.setDate(d.getDate() + days)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  }
   return typeof v === 'string' ? v.slice(0, 10) : ''
+}
+
+/** How a date filter value reads: "hoy", "dentro de 7 días", "hace 3 días" or the date. */
+export function describeDateToken(v: unknown): string {
+  const days = relativeDays(v)
+  if (days === null) return typeof v === 'string' ? v.slice(0, 10) : ''
+  if (days === 0) return 'hoy'
+  const n = Math.abs(days)
+  return days > 0 ? `dentro de ${n} día${n === 1 ? '' : 's'}` : `hace ${n} día${n === 1 ? '' : 's'}`
 }
 
 export function matchesFilter(prop: PropertyDef | undefined, value: ResolvedValue, f: Filter): boolean {

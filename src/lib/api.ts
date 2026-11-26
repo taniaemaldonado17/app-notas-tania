@@ -478,7 +478,7 @@ export async function deleteDatabase(databaseId: string): Promise<void> {
 
 export async function createRow(
   databaseId: string,
-  payload: { title?: string; icon?: string | null; values?: Record<string, RowValue>; position?: number }
+  payload: { title?: string; icon?: string | null; values?: Record<string, RowValue>; position?: number; content?: string | null }
 ): Promise<DbRow> {
   const data = await jsonFetch<{ row: DbRow }>(`${API_BASE}/databases/${databaseId}/rows`, {
     method: 'POST',
