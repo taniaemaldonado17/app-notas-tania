@@ -136,6 +136,7 @@ export function ShareDialog({
   }
 
   const isOwner = info?.isOwner ?? false
+  const canInvite = info?.canInvite ?? false
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -153,8 +154,13 @@ export function ShareDialog({
           </div>
         ) : info ? (
           <div className="max-h-[70vh] space-y-5 overflow-y-auto px-5 py-4">
-            {/* Invite (owner only) */}
-            {isOwner && (
+            {/* Invite (owner and app admin only) */}
+            {isOwner && !canInvite && (
+              <p className="rounded-md bg-muted/50 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                Solo las administradoras de la app pueden invitar a otras personas.
+              </p>
+            )}
+            {canInvite && (
               <section className="space-y-2">
                 <Button
                   onClick={handleCreateInvite}

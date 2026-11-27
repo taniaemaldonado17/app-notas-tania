@@ -95,6 +95,8 @@ export type SharePerson = {
 
 export type ShareInfo = {
   isOwner: boolean
+  /** Owner and app admin: can create invitation links. */
+  canInvite: boolean
   owner: SharePerson
   members: (SharePerson & { joinedAt: string })[]
   invites: { token: string; createdAt: string; expiresAt: string }[]

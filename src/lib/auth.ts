@@ -2,6 +2,7 @@ import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { db } from '@/lib/db'
 import { verifyPassword } from '@/lib/bcrypt'
+import { esAdmin } from '@/lib/admins'
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -105,6 +106,9 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user && token.id) {
         ;(session.user as { id?: string }).id = token.id as string
+        // Shows or hides admin-only things (sharing, Cómputo y presupuesto).
+        // The server checks it again on every request.
+        session.user.esAdmin = await esAdmin(token.id as string)
       }
       return session
     },

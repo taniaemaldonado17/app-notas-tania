@@ -11,6 +11,7 @@ import { CommentsSection } from '@/components/comments-section'
 import { EmojiPicker } from '@/components/emoji-picker'
 import { useDb, type Person } from '@/components/db/db-context'
 import { useDocSync } from '@/hooks/use-doc-sync'
+import { useEsAdmin } from '@/hooks/use-es-admin'
 import { PropertyCell } from '@/components/db/property-value'
 import { AddPropertyButton, PropertyIcon, PropertyMenu } from '@/components/db/property-menu'
 import { admitePresupuesto, PresupuestoBlock } from '@/components/presupuesto/presupuesto-block'
@@ -79,6 +80,7 @@ export function RowPanel({
 }
 
 function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: () => void }) {
+  const esAdmin = useEsAdmin()
   const { ws, people } = useDb()
   const [detail, setDetail] = useState<{ content: string | null; blocks: DocBlock[]; comments: CardComment[] } | null>(null)
   const [logo, setLogo] = useState<string | null>(null)
@@ -242,7 +244,7 @@ function RowBody({ db, row, onClose }: { db: DatabaseDef; row: DbRow; onClose: (
           <AddPropertyButton db={db} label="Agregar propiedad" className="h-8 rounded px-2 hover:bg-accent" />
         </div>
 
-        {admitePresupuesto(db) && <PresupuestoBlock rowId={row.id} titulo={row.title} />}
+        {esAdmin && admitePresupuesto(db) && <PresupuestoBlock rowId={row.id} titulo={row.title} />}
 
         <div className="border-t border-border pt-4">
           {detail ? (

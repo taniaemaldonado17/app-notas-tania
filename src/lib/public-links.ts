@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { db } from '@/lib/db'
+import { esAdmin } from '@/lib/admins'
 import { parentOf } from '@/lib/subpages-server'
 import type { DocKind, DocRef } from '@/lib/subpages'
 
@@ -24,7 +25,10 @@ export function publicUrl(origin: string, token: string) {
 
 export async function findPublicLink(token: string) {
   if (!token || token.length > 100) return null
-  return db.publicLink.findUnique({ where: { token } })
+  const link = await db.publicLink.findUnique({ where: { token } })
+  // Only links made by an admin work (others stop working, even old ones).
+  if (!link || !(await esAdmin(link.createdById))) return null
+  return link
 }
 
 export type PublicDoc = {

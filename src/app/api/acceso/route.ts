@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { getAuthUserId } from '@/lib/auth-helpers'
 import { quitarAcceso } from '@/lib/acceso'
+import { esAdmin, SOLO_ADMIN } from '@/lib/admins'
 
 /**
  * Who can see each of my pages: every person I share at least one page with,
@@ -70,6 +71,10 @@ export async function POST(req: Request) {
   const { userId: persona, acceso } = parsed.data
   if (persona === userId) {
     return NextResponse.json({ error: 'Ya tenés acceso: es tuyo' }, { status: 400 })
+  }
+  // Anyone can take access away from their own pages; only admins can give it.
+  if (acceso && !(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
   }
 
   if ('seccion' in parsed.data) {

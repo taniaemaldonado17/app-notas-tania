@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUserId, isPageOwner } from '@/lib/auth-helpers'
+import { esAdmin } from '@/lib/admins'
 
 /**
  * Public: what an invitation link is for (shown before signing in).
@@ -16,12 +17,13 @@ export async function GET(
     select: {
       usedAt: true,
       expiresAt: true,
+      createdById: true,
       page: { select: { title: true, icon: true } },
       createdBy: { select: { name: true, email: true } },
     },
   })
 
-  if (!invite) {
+  if (!invite || !(await esAdmin(invite.createdById))) {
     return NextResponse.json({ valid: false, reason: 'not_found' })
   }
   if (invite.usedAt) {

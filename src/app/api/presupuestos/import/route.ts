@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUserId } from '@/lib/auth-helpers'
+import { esAdmin, SOLO_ADMIN } from '@/lib/admins'
 import { findAccessibleRow } from '@/lib/db-server'
 import { leerJsonApp } from '@/lib/presupuesto/formato-app'
 import { FormatoInvalido, leerPlanilla } from '@/lib/presupuesto/importar'
@@ -17,6 +18,9 @@ export async function POST(req: Request) {
   const userId = await getAuthUserId()
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  if (!(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
   }
 
   let form: FormData

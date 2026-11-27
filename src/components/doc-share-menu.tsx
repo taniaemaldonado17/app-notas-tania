@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import * as api from '@/lib/api'
+import { useEsAdmin } from '@/hooks/use-es-admin'
 import { printDoc } from '@/lib/print-doc'
 import type { PaperDoc } from '@/components/doc-read-only'
 import type { DocRef } from '@/lib/subpages'
@@ -58,9 +59,11 @@ export function DocShareMenu({
   // undefined = not checked yet
   const [link, setLink] = useState<api.PublicLinkInfo | null | undefined>(undefined)
   const [busy, setBusy] = useState(false)
+  // Public links are for the app admins only (the server checks it too).
+  const esAdmin = useEsAdmin()
 
   function onOpenChange(open: boolean) {
-    if (!open) return
+    if (!open || !esAdmin) return
     api
       .fetchPublicLink(docRef)
       .then(setLink)
@@ -154,38 +157,42 @@ export function DocShareMenu({
           <Download className="mr-2 h-3.5 w-3.5" />
           Descargar PDF
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
-          <Globe className="h-3 w-3" />
-          {link === undefined ? (
-            <>
-              Enlace público <Loader2 className="h-3 w-3 animate-spin" />
-            </>
-          ) : link ? (
-            'Compartida: cualquiera con el enlace puede verla'
-          ) : (
-            'Enlace público de solo lectura'
-          )}
-        </DropdownMenuLabel>
-        <DropdownMenuItem className="cursor-pointer text-sm" disabled={busy} onClick={() => void copyLink()}>
-          <Link2 className="mr-2 h-3.5 w-3.5" />
-          {link ? 'Copiar enlace público' : 'Crear enlace para compartir'}
-        </DropdownMenuItem>
-        {canNativeShare && (
-          <DropdownMenuItem className="cursor-pointer text-sm" disabled={busy} onClick={() => void nativeShare()}>
-            <Share className="mr-2 h-3.5 w-3.5" />
-            Compartir enlace…
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem className="cursor-pointer text-sm" disabled={busy} onClick={() => void whatsApp()}>
-          <MessageCircle className="mr-2 h-3.5 w-3.5" />
-          Enviar enlace por WhatsApp
-        </DropdownMenuItem>
-        {link && (
-          <DropdownMenuItem className="cursor-pointer text-sm text-destructive focus:text-destructive" onClick={() => void stopSharing()}>
-            <XCircle className="mr-2 h-3.5 w-3.5" />
-            Dejar de compartir
-          </DropdownMenuItem>
+        {esAdmin && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
+              <Globe className="h-3 w-3" />
+              {link === undefined ? (
+                <>
+                  Enlace público <Loader2 className="h-3 w-3 animate-spin" />
+                </>
+              ) : link ? (
+                'Compartida: cualquiera con el enlace puede verla'
+              ) : (
+                'Enlace público de solo lectura'
+              )}
+            </DropdownMenuLabel>
+            <DropdownMenuItem className="cursor-pointer text-sm" disabled={busy} onClick={() => void copyLink()}>
+              <Link2 className="mr-2 h-3.5 w-3.5" />
+              {link ? 'Copiar enlace público' : 'Crear enlace para compartir'}
+            </DropdownMenuItem>
+            {canNativeShare && (
+              <DropdownMenuItem className="cursor-pointer text-sm" disabled={busy} onClick={() => void nativeShare()}>
+                <Share className="mr-2 h-3.5 w-3.5" />
+                Compartir enlace…
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem className="cursor-pointer text-sm" disabled={busy} onClick={() => void whatsApp()}>
+              <MessageCircle className="mr-2 h-3.5 w-3.5" />
+              Enviar enlace por WhatsApp
+            </DropdownMenuItem>
+            {link && (
+              <DropdownMenuItem className="cursor-pointer text-sm text-destructive focus:text-destructive" onClick={() => void stopSharing()}>
+                <XCircle className="mr-2 h-3.5 w-3.5" />
+                Dejar de compartir
+              </DropdownMenuItem>
+            )}
+          </>
         )}
         {extra ? (
           <>

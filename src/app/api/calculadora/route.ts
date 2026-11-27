@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { getAuthUserId } from '@/lib/auth-helpers'
+import { esAdmin, SOLO_ADMIN } from '@/lib/admins'
 
 /** Up to 2 MB of catalogue and lists (the initial catalogue is ~60 kB). */
 const MAX_BYTES = 2 * 1024 * 1024
@@ -12,6 +13,9 @@ export async function GET() {
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
+  if (!(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
+  }
   const fila = await db.calculadoraMateriales.findUnique({ where: { userId }, select: { data: true } })
   return NextResponse.json({ data: fila?.data ?? null }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
@@ -21,6 +25,9 @@ export async function PUT(req: Request) {
   const userId = await getAuthUserId()
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  if (!(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
   }
   const texto = await req.text()
   if (texto.length > MAX_BYTES) {

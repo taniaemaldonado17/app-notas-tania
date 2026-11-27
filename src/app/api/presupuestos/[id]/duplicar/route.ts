@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAuthUserId } from '@/lib/auth-helpers'
+import { esAdmin, SOLO_ADMIN } from '@/lib/admins'
 import { duplicarPresupuesto, findAccessiblePresupuesto } from '@/lib/presupuesto/server'
 
 /** Copy of a CyP (for a new revision): not linked to a project, without contract. */
@@ -7,6 +8,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const userId = await getAuthUserId()
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  if (!(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
   }
   const { id } = await params
   if (!(await findAccessiblePresupuesto(userId, id))) {

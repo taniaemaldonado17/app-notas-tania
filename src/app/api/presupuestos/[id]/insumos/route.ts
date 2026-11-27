@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAuthUserId } from '@/lib/auth-helpers'
+import { esAdmin, SOLO_ADMIN } from '@/lib/admins'
 import { findAccessiblePresupuesto, listarInsumos } from '@/lib/presupuesto/server'
 
 /** Inputs with base price, computed price and how many items use each. */
@@ -7,6 +8,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const userId = await getAuthUserId()
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  if (!(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
   }
   const { id } = await params
   if (!(await findAccessiblePresupuesto(userId, id))) {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
 import { getAuthUserId } from '@/lib/auth-helpers'
+import { esAdmin, SOLO_ADMIN } from '@/lib/admins'
 import { snapshotAProyecto } from '@/lib/presupuesto/formato-app'
 import { cargarSnapshot, findAccessiblePresupuesto } from '@/lib/presupuesto/server'
 import CPExcel from '@/lib/presupuesto/app-computo/excel.js'
@@ -14,6 +15,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const userId = await getAuthUserId()
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  if (!(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
   }
   const { id } = await params
   if (!(await findAccessiblePresupuesto(userId, id))) {

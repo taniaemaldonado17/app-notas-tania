@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAuthUserId } from '@/lib/auth-helpers'
+import { esAdmin, SOLO_ADMIN } from '@/lib/admins'
 import { aplicarLote, aplicarOperacion, ErrorEdicion, loteSchema, operacionSchema } from '@/lib/presupuesto/editar'
 import { findAccessiblePresupuesto } from '@/lib/presupuesto/server'
 
@@ -12,6 +13,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const userId = await getAuthUserId()
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  if (!(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
   }
   const { id } = await params
   if (!(await findAccessiblePresupuesto(userId, id))) {
