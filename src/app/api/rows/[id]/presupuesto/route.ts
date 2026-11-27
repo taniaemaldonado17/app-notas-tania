@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUserId } from '@/lib/auth-helpers'
+import { esAdmin, SOLO_ADMIN } from '@/lib/admins'
 import { findAccessibleRow } from '@/lib/db-server'
 import { sincronizarAvance } from '@/lib/certificacion/server'
 import { desvincularPresupuesto, findAccessiblePresupuesto, vincularPresupuesto } from '@/lib/presupuesto/server'
@@ -10,6 +11,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const userId = await getAuthUserId()
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  if (!(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
   }
   const { id } = await params
   if (!(await findAccessibleRow(userId, id))) {
@@ -47,6 +51,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
+  if (!(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
+  }
   const { id } = await params
   const row = await findAccessibleRow(userId, id)
   if (!row) {
@@ -74,6 +81,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   const userId = await getAuthUserId()
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  if (!(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
   }
   const { id } = await params
   if (!(await findAccessibleRow(userId, id))) {

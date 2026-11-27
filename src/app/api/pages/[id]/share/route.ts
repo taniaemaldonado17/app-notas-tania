@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { canAccessPage, getAuthUserId, isPageOwner } from '@/lib/auth-helpers'
+import { esAdmin, SOLO_ADMIN } from '@/lib/admins'
 import { INVITE_DAYS, newInviteToken } from '@/lib/invites'
 
 /**
@@ -40,6 +41,7 @@ export async function GET(
   }
 
   const isOwner = page.userId === userId
+  const canInvite = isOwner && (await esAdmin(userId))
   const invites = isOwner
     ? await db.pageInvite.findMany({
         where: { pageId: id, usedAt: null, expiresAt: { gt: new Date() } },
@@ -50,6 +52,7 @@ export async function GET(
 
   return NextResponse.json({
     isOwner,
+    canInvite,
     owner: page.user,
     members: page.members.map((m) => ({ ...m.user, joinedAt: m.createdAt })),
     invites,
@@ -72,6 +75,9 @@ export async function POST(
       { error: 'Solo quien creó la página puede invitar' },
       { status: 403 }
     )
+  }
+  if (!(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
   }
 
   const invite = await db.pageInvite.create({

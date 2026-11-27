@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUserId } from '@/lib/auth-helpers'
+import { esAdmin, SOLO_ADMIN } from '@/lib/admins'
 import { findAccessiblePresupuesto } from '@/lib/presupuesto/server'
 import { detalleCertificado } from '@/lib/certificacion/server'
 import { generarPdfCertificado, generarPdfFoja } from '@/lib/certificacion/pdf'
@@ -13,6 +14,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const userId = await getAuthUserId()
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  if (!(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
   }
   const { id, certId } = await params
   if (!(await findAccessiblePresupuesto(userId, id))) {

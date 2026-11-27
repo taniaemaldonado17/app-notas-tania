@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAuthUserId } from '@/lib/auth-helpers'
+import { esAdmin, SOLO_ADMIN } from '@/lib/admins'
 import { findAccessibleDoc, isDocKind } from '@/lib/subpages-server'
 import { newPublicToken, publicUrl } from '@/lib/public-links'
 import { appOrigin } from '@/lib/mentions'
@@ -11,7 +12,8 @@ import type { DocRef } from '@/lib/subpages'
  *   GET    ?kind=row&id=…   → { link: { token, url } | null }
  *   POST   { kind, id }      → creates it (or returns the existing one)
  *   DELETE ?kind=row&id=…   → stops sharing: the link stops working
- * Anyone who can open the document can manage its link.
+ * Anyone who can open the document can see or remove its link; only admins
+ * can create one.
  */
 
 async function docFrom(userId: string, kind: unknown, id: unknown) {
@@ -31,6 +33,8 @@ export async function GET(req: Request) {
   const q = new URL(req.url).searchParams
   const found = await docFrom(userId, q.get('kind'), q.get('id'))
   if (!found) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
+  // Only admins get to see (and pass on) a document's public link.
+  if (!(await esAdmin(userId))) return NextResponse.json({ link: null })
   const link = await db.publicLink.findFirst({ where: { kind: found.ref.kind, docId: found.ref.id }, orderBy: { createdAt: 'asc' } })
   return NextResponse.json({ link: link ? linkJson(req, link.token) : null })
 }
@@ -38,6 +42,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const userId = await getAuthUserId()
   if (!userId) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  if (!(await esAdmin(userId))) return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
   const body = await req.json().catch(() => ({}))
   const found = await docFrom(userId, body?.kind, body?.id)
   if (!found) return NextResponse.json({ error: 'No encontrado' }, { status: 404 })

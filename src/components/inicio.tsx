@@ -9,6 +9,7 @@ import { AccesoDialog } from '@/components/acceso-dialog'
 import { CypLista } from '@/components/presupuesto/cyp-lista'
 import * as api from '@/lib/api'
 import { useWorkspace } from '@/lib/workspace-store'
+import { useEsAdmin } from '@/hooks/use-es-admin'
 import { cn } from '@/lib/utils'
 
 const rtf = new Intl.RelativeTimeFormat('es-AR', { numeric: 'auto' })
@@ -50,7 +51,10 @@ export function Inicio({
   const [error, setError] = useState(false)
   const [cargando, setCargando] = useState(false)
   const [accesoOpen, setAccesoOpen] = useState(false)
-  const [seccion, setSeccion] = useState<'inicio' | 'cyp'>('inicio')
+  const [seccionElegida, setSeccion] = useState<'inicio' | 'cyp'>('inicio')
+  // «Cómputo y presupuesto» and sharing are only for the app admins.
+  const esAdmin = useEsAdmin()
+  const seccion = esAdmin ? seccionElegida : 'inicio'
   // Remember the tab when coming back to Inicio.
   useEffect(() => {
     try {
@@ -128,28 +132,30 @@ export function Inicio({
       <main className="mx-auto w-full max-w-5xl flex-1 space-y-6 px-4 py-8 sm:px-6">
         <h1 className="text-3xl font-bold">{nombre ? `Hola, ${nombre}` : 'Inicio'}</h1>
 
-        <nav className="flex gap-1 border-b border-border" role="tablist">
-          {(
-            [
-              ['inicio', 'Actividad'],
-              ['cyp', 'Cómputo y presupuesto'],
-            ] as const
-          ).map(([k, label]) => (
-            <button
-              key={k}
-              type="button"
-              role="tab"
-              aria-selected={seccion === k}
-              onClick={() => elegirSeccion(k)}
-              className={cn(
-                '-mb-px border-b-2 px-3 py-2 text-sm font-medium transition',
-                seccion === k ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
+        {esAdmin && (
+          <nav className="flex gap-1 border-b border-border" role="tablist">
+            {(
+              [
+                ['inicio', 'Actividad'],
+                ['cyp', 'Cómputo y presupuesto'],
+              ] as const
+            ).map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                role="tab"
+                aria-selected={seccion === k}
+                onClick={() => elegirSeccion(k)}
+                className={cn(
+                  '-mb-px border-b-2 px-3 py-2 text-sm font-medium transition',
+                  seccion === k ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        )}
 
         {seccion === 'cyp' ? (
           <CypLista />
@@ -193,7 +199,7 @@ export function Inicio({
               )}
             </section>
 
-            {propias > 0 && (
+            {esAdmin && propias > 0 && (
               <section className="space-y-3">
                 <h2 className="text-lg font-semibold">Personas con acceso</h2>
                 <button

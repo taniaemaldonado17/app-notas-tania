@@ -65,6 +65,17 @@ Esto crea todas las tablas en la base de datos.
 
 El registro de cuentas nuevas está cerrado por defecto. Para crear tu cuenta, poné `NEXT_PUBLIC_ALLOW_REGISTRATION=true` en `.env`, registrate desde la pantalla de login y después volvé a ponerlo en `false`. En Vercel es igual: agregá la variable, hacé Redeploy, registrate, sacala y volvé a hacer Redeploy.
 
+### Administradoras: quién puede compartir
+
+Poné en `ADMIN_EMAILS` los emails de las cuentas administradoras, separados por coma (en Vercel: Settings › Environment Variables, y después Redeploy). Solo ellas pueden:
+
+- Invitar gente con un enlace (y por lo tanto traer cuentas nuevas a la app).
+- Dar acceso a sus páginas desde «Personas con acceso».
+- Crear enlaces públicos de solo lectura.
+- Ver y usar «Cómputo y presupuesto».
+
+El resto de las cuentas usa normalmente lo que se les compartió, pero no puede pasárselo a nadie más. Los enlaces de invitación y los enlaces públicos creados por alguien que no es administradora dejan de funcionar. Si `ADMIN_EMAILS` está vacía, la única administradora es la primera cuenta que se creó.
+
 ### 5. Levantar el servidor de desarrollo
 
 ```bash

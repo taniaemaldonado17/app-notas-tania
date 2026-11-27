@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAuthUserId } from '@/lib/auth-helpers'
+import { esAdmin, SOLO_ADMIN } from '@/lib/admins'
 import { findAccessiblePresupuesto } from '@/lib/presupuesto/server'
 import {
   aplicarOperacionCert,
@@ -14,6 +15,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
+  if (!(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
+  }
   const { id } = await params
   if (!(await findAccessiblePresupuesto(userId, id))) {
     return NextResponse.json({ error: 'No encontrado' }, { status: 404 })
@@ -26,6 +30,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const userId = await getAuthUserId()
   if (!userId) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+  if (!(await esAdmin(userId))) {
+    return NextResponse.json({ error: SOLO_ADMIN }, { status: 403 })
   }
   const { id } = await params
   if (!(await findAccessiblePresupuesto(userId, id))) {
