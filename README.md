@@ -164,6 +164,8 @@ Para cambios chicos Claude usa `editar_bloques` (reemplaza, inserta o borra un p
 
 Claude también puede armar la estructura de una página de bases de datos: `ver_estructura`, `crear_base` (con relaciones), `agregar_propiedad`, `crear_vista` (filtros con fechas relativas como "hoy+7") y `agregar_al_tablero` (vistas, títulos, botones de acción rápida con plantilla de contenido e indicadores en la pantalla principal).
 
+Las administradoras (`ADMIN_EMAILS`) además pueden leer el **Cómputo y presupuesto** desde Claude, sin modificarlo: `listar_presupuestos` (todos los CyP con su proyecto y total) y `leer_presupuesto` (por id o por fila del proyecto: parámetros, totales, precio de venta y rubros con sus ítems, cantidades, precios unitarios y subtotales; opcionalmente con las mediciones y el análisis de precios de cada ítem). Para el resto de las cuentas esas herramientas no aparecen en el conector.
+
 El enlace funciona como una contraseña. Desde el mismo diálogo se puede generar uno nuevo (anula el anterior) o desconectar. Cada cambio que hace Claude queda en el historial de versiones de la página. Pruebas: `npm run test:mcp`.
 
 ## Páginas dentro de documentos
