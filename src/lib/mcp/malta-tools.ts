@@ -17,6 +17,7 @@ import { parseDoc, serializeDoc, type DocBlock } from '@/lib/blocks'
 import { blocksToMarkdown, markdownToBlocks } from '@/lib/md-blocks'
 import { editBlocks, EditError, replaceText, type BlockAction } from '@/lib/block-edit'
 import { makeStructureRunner, STRUCTURE_TOOL_NAMES, STRUCTURE_TOOLS } from '@/lib/mcp/structure-tools'
+import { makePresupuestoRunner, PRESUPUESTO_TOOL_NAMES } from '@/lib/mcp/presupuesto-tools'
 import { text, ToolError, type ToolDef, type ToolResult } from '@/lib/mcp/protocol'
 import { blockText, findSubPageBlocks, subPageBlock, SUBPAGE_BLOCK, type DocRef } from '@/lib/subpages'
 import { createSubPage, findAccessibleDoc, findAccessibleSubPage, parentOf, subPageTrail, syncLinkBlock, writeContent } from '@/lib/subpages-server'
@@ -32,6 +33,7 @@ export const INSTRUCTIONS = `Malta es la app de notas y proyectos de la usuaria 
 - Un documento puede tener páginas adentro (como en Notion). En el Markdown aparecen como una línea "📄 [Título](subpagina:ID)": leelas con leer_documento usando ese ID. Para crear una, usá crear_documento con dentro_de; para pasar una parte de un documento a una página propia, convertir_en_subpagina.
 - Para cambios puntuales (corregir un párrafo, cambiar unas palabras, agregar o borrar un bloque) usá editar_bloques o reemplazar_texto: dejan el resto del documento intacto, con su formato. actualizar_documento con modo "reemplazar" reescribe todo el documento y pierde colores y alineaciones.
 - Para armar o cambiar la estructura de una página de bases de datos: ver_estructura → crear_base / agregar_propiedad / crear_vista → agregar_al_tablero (pantalla principal: vistas, títulos, botones de acción rápida con plantilla e indicadores).
+- Cómputo y presupuesto de obra (solo para las administradoras de la app): listar_presupuestos → leer_presupuesto. Es de solo lectura.
 - Antes de reemplazar el contenido de un documento existente, confirmá con la usuaria si no lo pidió explícitamente.`
 
 /* --------------------------------- Schemas -------------------------------- */
@@ -847,6 +849,7 @@ export function makeRunner(userId: string, origin: string) {
   }
 
   const structure = makeStructureRunner(userId)
+  const presupuesto = makePresupuestoRunner(userId, origin)
 
   return async function run(name: string, args: Record<string, unknown>): Promise<ToolResult> {
     switch (name) {
@@ -870,6 +873,7 @@ export function makeRunner(userId: string, origin: string) {
         return reemplazarTexto(args)
       default:
         if (STRUCTURE_TOOL_NAMES.has(name)) return structure(name, args)
+        if (PRESUPUESTO_TOOL_NAMES.has(name)) return presupuesto(name, args)
         throw new ToolError(`Herramienta desconocida: ${name}`)
     }
   }

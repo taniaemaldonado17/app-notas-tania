@@ -1,7 +1,9 @@
 import { appOrigin } from '@/lib/mentions'
 import { handleRpc, parseError } from '@/lib/mcp/protocol'
 import { INSTRUCTIONS, makeRunner, TOOLS } from '@/lib/mcp/malta-tools'
+import { PRESUPUESTO_TOOLS } from '@/lib/mcp/presupuesto-tools'
 import { userForSecret } from '@/lib/mcp/token'
+import { esAdmin } from '@/lib/admins'
 
 /**
  * Claude connector: MCP server (Streamable HTTP, stateless, JSON replies).
@@ -32,7 +34,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     title: 'Malta',
     version: '1.0.0',
     instructions: INSTRUCTIONS,
-    tools: TOOLS,
+    // Cómputo y presupuesto: only the app's admins see these tools.
+    tools: (await esAdmin(userId)) ? [...TOOLS, ...PRESUPUESTO_TOOLS] : TOOLS,
     run: makeRunner(userId, appOrigin(req)),
   })
   if (reply === null) return new Response(null, { status: 202 })
